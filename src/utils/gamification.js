@@ -155,9 +155,20 @@ export function generateEncouragement(achievements, stats) {
 
 // 计算连续天数
 export function calculateStreak(dates) {
-  if (!dates || dates.length === 0) return 0
+  // 确保 dates 是数组
+  if (!dates) return 0
+  if (!Array.isArray(dates)) {
+    // 如果不是数组，尝试转换
+    if (typeof dates === 'object' && dates !== null) {
+      dates = Object.keys(dates)
+    } else {
+      return 0
+    }
+  }
+  if (dates.length === 0) return 0
   
-  const sortedDates = dates.sort().reverse()
+  // 创建新数组并排序，避免修改原数组
+  const sortedDates = [...dates].sort().reverse()
   let streak = 0
   const today = new Date()
   today.setHours(0, 0, 0, 0)

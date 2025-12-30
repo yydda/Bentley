@@ -1,4 +1,7 @@
-const STORAGE_KEY = 'diary_data'
+// 数据存储工具 - 仅使用Firebase
+
+import { getDiaryDataFromFirebase, saveDiaryDataToFirebase, getAllDatesFromFirebase } from './firebaseStorage'
+import { waitForAuth } from './firebaseAuth'
 
 // 获取今天的日期字符串 YYYY-MM-DD
 export function getTodayDate() {
@@ -6,23 +9,39 @@ export function getTodayDate() {
   return today.toISOString().split('T')[0]
 }
 
-// 获取所有日记数据
-export function getAllDiaryData() {
-  const data = localStorage.getItem(STORAGE_KEY)
-  return data ? JSON.parse(data) : {}
-}
-
 // 获取指定日期的日记数据
-export function getDiaryData(date) {
-  const allData = getAllDiaryData()
-  return allData[date] || getDefaultData()
+export async function getDiaryData(date) {
+  // 等待认证状态初始化
+  const user = await waitForAuth()
+  if (!user) {
+    // 如果未登录，返回默认数据
+    return getDefaultData()
+  }
+  
+  const data = await getDiaryDataFromFirebase(user.uid, date)
+  return data || getDefaultData()
 }
 
 // 保存日记数据
-export function saveDiaryData(date, data) {
-  const allData = getAllDiaryData()
-  allData[date] = data
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(allData))
+export async function saveDiaryData(date, data) {
+  // 等待认证状态初始化
+  const user = await waitForAuth()
+  if (!user) {
+    throw new Error('请先登录以保存数据')
+  }
+  
+  await saveDiaryDataToFirebase(user.uid, date, data)
+}
+
+// 获取所有日期列表
+export async function getAllDates() {
+  // 等待认证状态初始化
+  const user = await waitForAuth()
+  if (!user) {
+    return []
+  }
+  
+  return await getAllDatesFromFirebase(user.uid)
 }
 
 // 获取默认数据结构
@@ -73,9 +92,3 @@ export function getDefaultData() {
     }
   }
 }
-
-// 获取所有日期列表
-export function getAllDates() {
-  return Object.keys(getAllDiaryData()).sort().reverse()
-}
-

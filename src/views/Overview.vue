@@ -169,6 +169,7 @@ const route = useRoute()
 
 const date = ref(route.query.date || new Date().toISOString().split('T')[0])
 const formData = ref({})
+const historyDates = ref([])
 
 const achievements = computed(() => {
   return calculateAchievements(formData.value, date.value)
@@ -191,8 +192,9 @@ const mainEncouragement = computed(() => {
 })
 
 const streak = computed(() => {
-  const dates = getAllDates()
-  return calculateStreak(dates)
+  // getAllDates 现在是异步的，但在 computed 中无法直接使用 async
+  // 所以这里使用 ref 来存储日期列表
+  return calculateStreak(historyDates.value || [])
 })
 
 // 导出
@@ -216,24 +218,32 @@ function handleNewDay() {
   router.push('/')
 }
 
-onMounted(() => {
+onMounted(async () => {
   // 加载数据
   try {
     if (route.query.data) {
       formData.value = JSON.parse(decodeURIComponent(route.query.data))
     } else {
       // 如果没有传递数据，从存储中加载
-      formData.value = getDiaryData(date.value)
+      formData.value = await getDiaryData(date.value)
     }
   } catch (e) {
     console.error('加载数据失败:', e)
     ElMessage.error('加载数据失败')
     // 如果加载失败，尝试从存储加载
     try {
-      formData.value = getDiaryData(date.value)
+      formData.value = await getDiaryData(date.value)
     } catch (e2) {
       console.error('从存储加载也失败:', e2)
     }
+  }
+  
+  // 加载日期列表（用于计算连续天数）
+  try {
+    historyDates.value = await getAllDates()
+  } catch (e) {
+    console.error('加载日期列表失败:', e)
+    historyDates.value = []
   }
   
   // 添加庆祝动画效果

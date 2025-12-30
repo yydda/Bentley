@@ -30,16 +30,59 @@
           :disabled="!canNavigateNext"
         />
         <el-button
-          text
+          type="default"
           @click="showHistoryDialog = true"
           :icon="Calendar"
           size="small"
+          plain
         >
           <span class="hidden sm:inline">历史</span>
         </el-button>
-        <el-button type="primary" @click="handleExport" :icon="Download" size="small">
+        <el-button 
+          type="default" 
+          @click="handleExport" 
+          :icon="Download" 
+          size="small"
+          plain
+        >
           <span class="hidden md:inline">导出</span>
         </el-button>
+        <el-button 
+          type="primary"  
+          @click="saveManually" 
+          size="small"
+          title="保存 (Ctrl+S / Cmd+S)"
+          v-if="user"
+        >
+          <span class="hidden sm:inline">保存</span>
+        </el-button>
+        <el-button 
+          type="success"  
+          @click="handlePreview" 
+          size="small"
+          :icon="Check"
+          v-if="user"
+        >
+          <span class="hidden sm:inline">预览</span>
+        </el-button>
+        <el-button 
+          text 
+          @click="showLoginDialog = true" 
+          :icon="User" 
+          size="small"
+          v-if="!user"
+        >
+          <span class="hidden sm:inline">登录</span>
+        </el-button>
+        <el-avatar 
+          v-else
+          :src="user.photoURL" 
+          :size="32"
+          @click="showLoginDialog = true"
+          class="cursor-pointer"
+        >
+          {{ user.displayName?.[0] || user.email?.[0] }}
+        </el-avatar>
       </div>
     </header>
 
@@ -59,7 +102,7 @@
         >
           <div>
             <div class="font-medium">{{ formatDate(date) }}</div>
-            <div class="text-sm text-gray-500">{{ getDateSummary(date) }}</div>
+            <div class="text-sm text-gray-500">{{ dateSummaryMap[date] || '加载中...' }}</div>
           </div>
           <el-button
             text
@@ -191,39 +234,204 @@
             下一步
           </el-button>
         </div>
-        
-        <!-- 提交按钮 -->
-        <el-button
-          type="success"
-          size="large"
-          @click="handleSubmit"
-          class="submit-btn w-full"
-          :icon="Check"
-        >
-          <span class="text-lg font-semibold">✨ 提交日记</span>
-        </el-button>
       </div>
     </div>
+    
+    <!-- 登录对话框 -->
+    <el-dialog
+      v-model="showLoginDialog"
+      title="登录与同步设置"
+      width="90%"
+      :max-width="500"
+      :close-on-click-modal="false"
+    >
+      <Login @login="handleUserLogin" @logout="handleUserLogout" />
+    </el-dialog>
+
+    <!-- 预览总览弹窗 -->
+    <el-dialog
+      v-model="showOverviewDialog"
+      title="日记预览"
+      width="95%"
+      :max-width="900"
+      :close-on-click-modal="true"
+      class="overview-dialog"
+      @opened="handleOverviewOpened"
+    >
+      <div class="overview-content">
+        <!-- 顶部装饰 -->
+        <div class="celebration-header">
+          <div class="celebration-animation">
+            <span class="celebration-emoji">📝</span>
+            <span class="celebration-emoji">✨</span>
+            <span class="celebration-emoji">📊</span>
+          </div>
+          <h1 class="celebration-title">日记预览</h1>
+          <p class="celebration-subtitle">{{ formatDate(currentDate) }} 的记录</p>
+        </div>
+
+        <!-- 鼓励文案 -->
+        <el-card class="encouragement-card mb-4" shadow="hover">
+          <div class="text-center py-3">
+            <div class="text-3xl mb-2">{{ mainEncouragement.emoji }}</div>
+            <div class="text-base font-semibold text-white">{{ mainEncouragement.message }}</div>
+          </div>
+        </el-card>
+
+        <!-- 成就展示 -->
+        <el-card v-if="overviewAchievements.length > 0" class="mb-4" shadow="hover">
+          <template #header>
+            <div class="flex items-center gap-2">
+              <span class="text-2xl">🏆</span>
+              <span class="text-lg font-semibold">今日成就</span>
+              <el-tag type="success" size="small">{{ overviewAchievements.length }} 项</el-tag>
+            </div>
+          </template>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div
+              v-for="(achievement, index) in overviewAchievements"
+              :key="index"
+              class="achievement-item"
+            >
+              <div class="achievement-icon">{{ achievement.icon }}</div>
+              <div class="achievement-content">
+                <div class="achievement-title">{{ achievement.title }}</div>
+                <div class="achievement-desc">{{ achievement.description }}</div>
+              </div>
+            </div>
+          </div>
+        </el-card>
+
+        <!-- 数据统计 -->
+        <el-card class="mb-4" shadow="hover">
+          <template #header>
+            <div class="flex items-center gap-2">
+              <span class="text-2xl">📊</span>
+              <span class="text-lg font-semibold">今日数据</span>
+            </div>
+          </template>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-label">时间总和</div>
+              <div class="stat-value">{{ overviewStats.时间总和 }}<span class="stat-unit">小时</span></div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">满意度</div>
+              <div class="stat-value">{{ overviewStats.满意度 }}</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">习惯数</div>
+              <div class="stat-value">{{ overviewStats.习惯数 }}<span class="stat-unit">个</span></div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">项目进度</div>
+              <div class="stat-value">{{ overviewStats.项目进度 }}<span class="stat-unit">%</span></div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">工作小时</div>
+              <div class="stat-value">{{ overviewStats.工作小时 }}<span class="stat-unit">h</span></div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">新连接</div>
+              <div class="stat-value">{{ overviewStats.新连接 }}<span class="stat-unit">个</span></div>
+            </div>
+          </div>
+        </el-card>
+
+        <!-- 连续天数 -->
+        <el-card v-if="overviewStreak > 0" class="mb-4 streak-card" shadow="hover">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm text-gray-600 mb-1">连续记录</div>
+              <div class="text-3xl font-bold text-orange-500">{{ overviewStreak }} 天</div>
+            </div>
+            <div class="text-5xl">🔥</div>
+          </div>
+          <div class="mt-3 text-sm text-gray-500">
+            <span v-if="overviewStreak >= 30">坚持一个月了，太厉害了！</span>
+            <span v-else-if="overviewStreak >= 7">坚持一周了，继续保持！</span>
+            <span v-else>继续坚持，形成习惯！</span>
+          </div>
+        </el-card>
+
+        <!-- 快速操作 -->
+        <el-card class="mb-4" shadow="hover">
+          <template #header>
+            <div class="flex items-center gap-2">
+              <span class="text-2xl">⚡</span>
+              <span class="text-lg font-semibold">快速操作</span>
+            </div>
+          </template>
+          <div class="flex flex-col md:flex-row gap-3">
+            <el-button
+              type="primary"
+              size="default"
+              @click="handleOverviewExport"
+              :icon="Download"
+              class="flex-1"
+            >
+              导出Markdown
+            </el-button>
+            <el-button
+              type="success"
+              size="default"
+              @click="handleNewDay"
+              :icon="Calendar"
+              class="flex-1"
+            >
+              新的一天
+            </el-button>
+            <el-button
+              type="default"
+              size="default"
+              @click="showOverviewDialog = false"
+              class="flex-1"
+            >
+              关闭
+            </el-button>
+          </div>
+        </el-card>
+
+        <!-- 鼓励提示 -->
+        <div class="encouragement-tips">
+          <div class="tip-item">
+            <span class="tip-icon">💡</span>
+            <span class="tip-text">每天记录，见证自己的成长</span>
+          </div>
+          <div class="tip-item">
+            <span class="tip-icon">📈</span>
+            <span class="tip-text">坚持记录，数据会告诉你答案</span>
+          </div>
+          <div class="tip-item">
+            <span class="tip-icon">🎯</span>
+            <span class="tip-text">设定目标，一步步实现梦想</span>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Download, ArrowLeft, ArrowRight, Calendar, Check } from '@element-plus/icons-vue'
-import { getTodayDate, getDiaryData, saveDiaryData, getAllDates } from '../utils/storage'
+import { Download, ArrowLeft, ArrowRight, Calendar, Check, User } from '@element-plus/icons-vue'
+import { getTodayDate, getDiaryData, saveDiaryData, getAllDates, getDefaultData } from '../utils/storage'
 import { exportToMarkdown, downloadFile } from '../utils/export'
 import { checkOverallComplete } from '../utils/validation'
-import { useRouter } from 'vue-router'
+import { onAuthChange, getCurrentUser, waitForAuth } from '../utils/firebaseAuth'
+import { subscribeDiaryData } from '../utils/firebaseStorage'
 import TimeSpend from '../components/TimeSpend.vue'
 import LifeModule from '../components/LifeModule.vue'
 import AmModule from '../components/AmModule.vue'
 import LoveModule from '../components/LoveModule.vue'
+import Login from '../components/Login.vue'
 
-const router = useRouter()
 const currentDate = ref(getTodayDate())
 const activeStep = ref(0)
 const showHistoryDialog = ref(false)
+const showLoginDialog = ref(false)
+const user = ref(null)
 const formData = ref({
   时间花销: {},
   LIFE: {},
@@ -232,13 +440,17 @@ const formData = ref({
 })
 
 // 历史记录日期列表
-const historyDates = computed(() => getAllDates())
+const historyDates = ref([])
+// 日期摘要映射（缓存）
+const dateSummaryMap = ref({})
 
 // 日期导航
 const canNavigatePrev = computed(() => {
-  const dates = getAllDates()
-  const currentIndex = dates.indexOf(currentDate.value)
-  return currentIndex < dates.length - 1
+  if (!Array.isArray(historyDates.value) || historyDates.value.length === 0) {
+    return false
+  }
+  const currentIndex = historyDates.value.indexOf(currentDate.value)
+  return currentIndex < historyDates.value.length - 1
 })
 
 const canNavigateNext = computed(() => {
@@ -263,20 +475,25 @@ function formatDate(dateStr) {
   }
 }
 
-// 获取日期摘要
-function getDateSummary(dateStr) {
-  const data = getDiaryData(dateStr)
-  const totalHours = (data.时间花销?.副业 || 0) + 
-                     (data.时间花销?.对象 || 0) + 
-                     (data.时间花销?.主职 || 0) + 
-                     (data.时间花销?.娱乐内耗 || 0) + 
-                     (data.时间花销?.通勤 || 0) + 
-                     (data.时间花销?.睡眠 || 0)
-  const hasContent = totalHours > 0 || 
-                     (data.LIFE?.习惯?.length > 0) ||
-                     (data.AM?.项目进度 > 0) ||
-                     (data.LOVE?.新连接数 > 0)
-  return hasContent ? `已填写 (${totalHours.toFixed(1)}h)` : '未填写'
+// 获取日期摘要（异步）
+async function getDateSummary(dateStr) {
+  try {
+    const data = await getDiaryData(dateStr)
+    const totalHours = (data.时间花销?.副业 || 0) + 
+                       (data.时间花销?.对象 || 0) + 
+                       (data.时间花销?.主职 || 0) + 
+                       (data.时间花销?.娱乐内耗 || 0) + 
+                       (data.时间花销?.通勤 || 0) + 
+                       (data.时间花销?.睡眠 || 0)
+    const hasContent = totalHours > 0 || 
+                       (data.LIFE?.习惯?.length > 0) ||
+                       (data.AM?.项目进度 > 0) ||
+                       (data.LOVE?.新连接数 > 0)
+    return hasContent ? `已填写 (${totalHours.toFixed(1)}h)` : '未填写'
+  } catch (e) {
+    console.error('获取日期摘要失败:', e)
+    return '加载中...'
+  }
 }
 
 // 选择历史日期
@@ -287,7 +504,7 @@ function selectHistoryDate(date) {
 
 // 日期导航
 function navigateDate(direction) {
-  const dates = getAllDates()
+  const dates = historyDates.value
   const currentIndex = dates.indexOf(currentDate.value)
   
   if (direction === -1 && currentIndex < dates.length - 1) {
@@ -307,107 +524,383 @@ function navigateDate(direction) {
 
 // 当前正在编辑的日期（用于保存时使用）
 const editingDate = ref(getTodayDate())
+// 记录上次保存的数据，用于比较是否有变化
+const lastSavedData = ref(null)
 
-// 加载数据
-function loadData(date = null) {
+// 加载数据（支持异步）
+async function loadData(date = null) {
   const targetDate = date || currentDate.value
   editingDate.value = targetDate
-  const data = getDiaryData(targetDate)
-  // 深拷贝避免引用问题
-  formData.value = JSON.parse(JSON.stringify(data))
+  
+  try {
+    const data = await getDiaryData(targetDate)
+    // 深拷贝避免引用问题
+    const cleanData = JSON.parse(JSON.stringify(data))
+    formData.value = cleanData
+    
+    // 更新上次保存的数据（用于比较变化）
+    lastSavedData.value = cleanData
+    
+    // 如果已登录，设置实时监听
+    if (user.value) {
+      // 取消之前的监听
+      if (window.currentDataUnsubscribe) {
+        window.currentDataUnsubscribe()
+      }
+      
+      // 设置新的监听
+      try {
+        window.currentDataUnsubscribe = subscribeDiaryData(
+          user.value.uid,
+          targetDate,
+          (data) => {
+            if (data) {
+              // 移除Firebase的元数据
+              const { date, updatedAt, ...diaryData } = data
+              const cleanData = JSON.parse(JSON.stringify(diaryData))
+              formData.value = cleanData
+              // 更新上次保存的数据（来自其他设备的更新）
+              lastSavedData.value = cleanData
+            }
+          }
+        )
+      } catch (e) {
+        console.warn('设置实时监听失败:', e)
+      }
+    }
+  } catch (error) {
+    console.error('加载数据失败:', error)
+    ElMessage.error('加载数据失败：' + error.message)
+    // 使用默认数据
+    formData.value = JSON.parse(JSON.stringify(getDefaultData()))
+  }
 }
 
-// 防抖保存函数
-let saveTimer = null
-function saveData(showMessage = false) {
+// 比较两个数据对象是否相同（忽略Firebase的元数据）
+function isDataChanged(newData, oldData) {
+  if (!oldData) return true
+  
+  // 移除Firebase的元数据进行比较
+  const cleanNewData = { ...newData }
+  delete cleanNewData.date
+  delete cleanNewData.updatedAt
+  
+  const cleanOldData = { ...oldData }
+  delete cleanOldData.date
+  delete cleanOldData.updatedAt
+  
+  return JSON.stringify(cleanNewData) !== JSON.stringify(cleanOldData)
+}
+
+// 手动保存（强制保存，忽略变化检测）
+async function saveManually() {
   if (saveTimer) {
     clearTimeout(saveTimer)
   }
-  saveTimer = setTimeout(() => {
-    // 使用editingDate确保保存到正确的日期
-    saveDiaryData(editingDate.value, JSON.parse(JSON.stringify(formData.value)))
-    if (showMessage) {
-      ElMessage.success('数据已保存')
+  try {
+    const currentData = JSON.parse(JSON.stringify(formData.value))
+    await saveDiaryData(editingDate.value, currentData)
+    lastSavedData.value = currentData
+    ElMessage.success('数据已保存')
+  } catch (error) {
+    console.error('保存数据失败:', error)
+    ElMessage.error('保存数据失败：' + error.message)
+  }
+}
+
+// 防抖保存函数（支持异步，只在数据变化时保存）
+let saveTimer = null
+async function saveData(showMessage = false) {
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+  }
+  saveTimer = setTimeout(async () => {
+    try {
+      const currentData = JSON.parse(JSON.stringify(formData.value))
+      
+      // 检查数据是否有变化
+      if (!isDataChanged(currentData, lastSavedData.value)) {
+        // 数据没有变化，跳过保存
+        return
+      }
+      
+      // 使用editingDate确保保存到正确的日期
+      await saveDiaryData(editingDate.value, currentData)
+      
+      // 更新上次保存的数据
+      lastSavedData.value = currentData
+      
+      if (showMessage) {
+        ElMessage.success('数据已保存')
+      }
+    } catch (error) {
+      console.error('保存数据失败:', error)
+      ElMessage.error('保存数据失败：' + error.message)
     }
   }, 1000) // 1秒防抖
 }
 
-// 立即保存（用于切换步骤时）
-function saveDataImmediately() {
+// 立即保存（用于切换步骤时，也会检查变化）
+async function saveDataImmediately() {
   if (saveTimer) {
     clearTimeout(saveTimer)
   }
-  // 使用editingDate确保保存到正确的日期
-  saveDiaryData(editingDate.value, JSON.parse(JSON.stringify(formData.value)))
+  try {
+    const currentData = JSON.parse(JSON.stringify(formData.value))
+    
+    // 检查数据是否有变化
+    if (!isDataChanged(currentData, lastSavedData.value)) {
+      // 数据没有变化，跳过保存
+      return
+    }
+    
+    // 使用editingDate确保保存到正确的日期
+    await saveDiaryData(editingDate.value, currentData)
+    
+    // 更新上次保存的数据
+    lastSavedData.value = currentData
+  } catch (error) {
+    console.error('保存数据失败:', error)
+    ElMessage.error('保存数据失败：' + error.message)
+  }
 }
 
 // 日期变化
-function handleDateChange(newDate) {
+async function handleDateChange(newDate) {
   if (newDate && newDate !== editingDate.value) {
-    // 先保存当前日期的数据
-    saveDataImmediately()
+    // 先保存当前日期的数据（如果数据有变化）
+    await saveDataImmediately()
+    // 重置上次保存的数据（切换日期后需要重新比较）
+    lastSavedData.value = null
     // 加载新日期的数据
-    loadData(newDate)
+    await loadData(newDate)
     activeStep.value = 0
     ElMessage.info(`已切换到 ${formatDate(newDate)}`)
   }
 }
 
 // 步骤点击（支持直接跳转）
-function handleStepClick(index) {
-  if (index !== activeStep) {
-    saveDataImmediately()
+async function handleStepClick(index) {
+  if (index !== activeStep.value) {
+    await saveDataImmediately()
     activeStep.value = index
   }
 }
 
 // 下一步
-function handleNext() {
+async function handleNext() {
   if (activeStep.value < 3) {
-    saveDataImmediately()
+    await saveDataImmediately()
     activeStep.value++
   }
 }
 
 // 上一步
-function handlePrev() {
+async function handlePrev() {
   if (activeStep.value > 0) {
-    saveDataImmediately()
+    await saveDataImmediately()
     activeStep.value--
   }
 }
 
 // 完成
-function handleComplete() {
-  saveDataImmediately()
+async function handleComplete() {
+  await saveDataImmediately()
   ElMessage.success('日记填写完成！')
 }
 
-// 提交日记（跳转到总览页面）
-function handleSubmit() {
-  saveDataImmediately()
-  // 跳转到总览页面，传递日期和数据
-  router.push({
-    path: '/overview',
-    query: {
-      date: currentDate.value,
-      data: encodeURIComponent(JSON.stringify(formData.value))
-    }
-  })
+// 提交日记相关状态
+const showOverviewDialog = ref(false)
+const overviewAchievements = ref([])
+const overviewStats = ref({})
+const overviewStreak = ref(0)
+const overviewEncouragements = ref([])
+
+const mainEncouragement = computed(() => {
+  return overviewEncouragements.value[0] || {
+    type: 'normal',
+    message: '记录本身就是一种成长，继续加油！',
+    emoji: '💪'
+  }
+})
+
+// 预览日记（打开总览弹窗）
+async function handlePreview() {
+  await saveDataImmediately()
+  showOverviewDialog.value = true
 }
 
-// 导出
-function handleExport() {
-  saveDataImmediately() // 导出前先保存
+// 弹窗打开后计算数据
+async function handleOverviewOpened() {
+  // 计算成就
+  overviewAchievements.value = calculateAchievements(formData.value, currentDate.value)
+  
+  // 计算统计数据
+  overviewStats.value = calculateStats(formData.value)
+  
+  // 计算鼓励信息
+  overviewEncouragements.value = generateEncouragement(overviewAchievements.value, overviewStats.value)
+  
+  // 计算连续天数
+  try {
+    const dates = await getAllDates()
+    overviewStreak.value = calculateStreak(dates || [])
+  } catch (e) {
+    console.error('加载日期列表失败:', e)
+    overviewStreak.value = 0
+  }
+  
+  // 添加庆祝动画效果
+  setTimeout(() => {
+    const emojis = document.querySelectorAll('.celebration-emoji')
+    emojis.forEach((emoji, index) => {
+      setTimeout(() => {
+        emoji.style.animation = 'bounce 0.6s ease-in-out'
+      }, index * 100)
+    })
+  }, 100)
+}
+
+// 导出（在总览弹窗中）
+function handleOverviewExport() {
   const markdown = exportToMarkdown(currentDate.value, formData.value)
   const filename = `日记_${currentDate.value}.md`
   downloadFile(markdown, filename, 'text/markdown')
   ElMessage.success('导出成功！')
 }
 
+// 新的一天
+function handleNewDay() {
+  showOverviewDialog.value = false
+  // 切换到今天
+  currentDate.value = getTodayDate()
+}
+
+// 导出
+async function handleExport() {
+  await saveDataImmediately() // 导出前先保存
+  const markdown = exportToMarkdown(currentDate.value, formData.value)
+  const filename = `日记_${currentDate.value}.md`
+  downloadFile(markdown, filename, 'text/markdown')
+  ElMessage.success('导出成功！')
+}
+
+// 用户登录
+function handleUserLogin(userData) {
+  user.value = userData
+  showLoginDialog.value = false
+  // 重新加载数据
+  loadData()
+}
+
+// 用户登出
+function handleUserLogout() {
+  user.value = null
+  showLoginDialog.value = false
+  // 取消Firebase监听
+  if (window.currentDataUnsubscribe) {
+    window.currentDataUnsubscribe()
+    window.currentDataUnsubscribe = null
+  }
+  // 取消日期列表监听
+  if (window.datesUnsubscribe) {
+    window.datesUnsubscribe()
+    window.datesUnsubscribe = null
+  }
+  // 清空数据
+  historyDates.value = []
+  formData.value = JSON.parse(JSON.stringify(getDefaultData()))
+  lastSavedData.value = null
+}
+
 // 监听日期变化
-watch(currentDate, (newDate) => {
-  handleDateChange(newDate)
+watch(currentDate, async (newDate) => {
+  await handleDateChange(newDate)
+})
+
+// 更新历史记录列表
+async function updateHistoryDates() {
+  try {
+    const dates = await getAllDates()
+    historyDates.value = dates
+    
+    // 异步加载所有日期的摘要
+    dates.forEach(async (date) => {
+      if (!dateSummaryMap.value[date]) {
+        dateSummaryMap.value[date] = await getDateSummary(date)
+      }
+    })
+  } catch (e) {
+    console.error('加载日期列表失败:', e)
+    historyDates.value = []
+  }
+}
+
+// 监听键盘快捷键（Ctrl+S / Cmd+S）
+function handleKeydown(event) {
+  // Ctrl+S (Windows/Linux) 或 Cmd+S (Mac)
+  if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+    event.preventDefault() // 阻止浏览器默认保存行为
+    if (user.value) {
+      saveManually()
+    }
+  }
+}
+
+// 监听认证状态
+onMounted(async () => {
+  // 先等待认证状态初始化
+  user.value = await waitForAuth()
+  
+  // 初始化加载数据
+  await loadData()
+  await updateHistoryDates()
+  
+  // 添加键盘快捷键监听
+  window.addEventListener('keydown', handleKeydown)
+  
+  // 继续监听认证状态变化
+  onAuthChange((currentUser) => {
+    user.value = currentUser
+    if (currentUser) {
+      // 用户登录后重新加载数据
+      loadData()
+      updateHistoryDates()
+      
+      // 监听日期列表变化
+      // 取消之前的监听
+      if (window.datesUnsubscribe) {
+        window.datesUnsubscribe()
+      }
+      import('../utils/firebaseStorage').then(({ subscribeAllDates }) => {
+        window.datesUnsubscribe = subscribeAllDates(currentUser.uid, (dates) => {
+          historyDates.value = dates
+        })
+      })
+    } else {
+      // 用户登出后清空列表
+      historyDates.value = []
+    }
+  })
+  
+  // 如果已经登录，监听日期列表变化
+  if (user.value) {
+    const { subscribeAllDates } = await import('../utils/firebaseStorage')
+    window.datesUnsubscribe = subscribeAllDates(user.value.uid, (dates) => {
+      historyDates.value = dates
+    })
+  }
+})
+
+// 组件卸载时清理
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
+  if (window.currentDataUnsubscribe) {
+    window.currentDataUnsubscribe()
+  }
+  if (window.datesUnsubscribe) {
+    window.datesUnsubscribe()
+  }
 })
 
 // 完成度检查
@@ -422,10 +915,6 @@ watch(formData, () => {
     saveData(false)
   }
 }, { deep: true })
-
-onMounted(() => {
-  loadData()
-})
 </script>
 
 <style scoped>
@@ -609,6 +1098,249 @@ onMounted(() => {
 
   :deep(.el-alert__title) {
     font-size: 12px;
+  }
+}
+
+/* 总览弹窗样式 */
+.overview-dialog :deep(.el-dialog__header) {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.overview-dialog :deep(.el-dialog__title) {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.overview-content {
+  max-height: 75vh;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.celebration-header {
+  text-align: center;
+  padding: 1.5rem 0 1rem 0;
+  position: relative;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  margin: -20px -20px 1.5rem -20px;
+  border-radius: 8px 8px 0 0;
+}
+
+.celebration-animation {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.celebration-emoji {
+  font-size: 2rem;
+  display: inline-block;
+  animation: float 2s ease-in-out infinite;
+}
+
+.celebration-emoji:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.celebration-emoji:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.celebration-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.25rem;
+}
+
+.celebration-subtitle {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.encouragement-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+}
+
+.encouragement-card :deep(.el-card__body) {
+  color: white;
+  padding: 16px;
+}
+
+.encouragement-card :deep(.el-card__body) .text-gray-800 {
+  color: white !important;
+}
+
+.achievement-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  transition: all 0.3s;
+  border: 1px solid #e5e7eb;
+}
+
+.achievement-item:hover {
+  background: #f3f4f6;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-color: #d1d5db;
+}
+
+.achievement-icon {
+  font-size: 1.75rem;
+  flex-shrink: 0;
+}
+
+.achievement-content {
+  flex: 1;
+}
+
+.achievement-title {
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.25rem;
+}
+
+.achievement-desc {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.875rem;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 0.875rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  transition: all 0.3s;
+}
+
+.stat-item:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #1f2937;
+}
+
+.stat-unit {
+  font-size: 0.875rem;
+  font-weight: normal;
+  color: #6b7280;
+  margin-left: 0.25rem;
+}
+
+.streak-card {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  border: none;
+}
+
+.streak-card :deep(.el-card__body) {
+  color: white;
+  padding: 16px;
+}
+
+.streak-card :deep(.el-card__body) .text-gray-600,
+.streak-card :deep(.el-card__body) .text-gray-500 {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.streak-card :deep(.el-card__body) .text-orange-500 {
+  color: white !important;
+}
+
+.encouragement-tips {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.tip-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.tip-icon {
+  font-size: 1.125rem;
+}
+
+.tip-text {
+  flex: 1;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-15px);
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-20px) scale(1.1);
+  }
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .celebration-title {
+    font-size: 1.25rem;
+  }
+
+  .celebration-emoji {
+    font-size: 1.75rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .stat-value {
+    font-size: 1.125rem;
+  }
+
+  .achievement-item {
+    padding: 0.75rem;
+  }
+
+  .achievement-icon {
+    font-size: 1.5rem;
   }
 }
 
