@@ -1,57 +1,82 @@
 <template>
-  <div class="life-module">
+  <div class="wealth-module">
     <!-- 引导问题 -->
     <div class="guide-question">
       <div class="guide-icon">💡</div>
-      <div class="guide-text">引导问题：今天想思考/推进的生活课题是什么？</div>
+      <div class="guide-text">引导问题：今天最值得做的一件"有复利"的事是什么？</div>
     </div>
 
     <div class="form-content space-y-6">
-      <!-- 主问题 -->
-      <el-form-item label="生活主问题" label-width="140px" required>
+      <!-- 主目标（可选，可复用） -->
+      <el-form-item label="财富主目标（长期）" label-width="140px">
         <el-input
-          v-model="localData.主问题"
-          placeholder="例如：买车到底要不要现在买？ / 晚上总是刷手机到很晚"
+          v-model="localData.主目标"
+          placeholder="例如：三年内把可支配现金流做到X，靠主职+副业（可选，可复用）"
           :maxlength="100"
           show-word-limit
         />
-        <div class="hint-text">今天想思考或推进的生活课题</div>
+        <div class="hint-text">长期目标，不需要每天改</div>
       </el-form-item>
 
-      <!-- 今日行动 -->
-      <el-form-item label="今日生活行动" label-width="140px" required>
+      <!-- 今日焦点问题 -->
+      <el-form-item label="今日财富焦点问题" label-width="140px" required>
         <el-input
-          v-model="localData.今日行动"
-          placeholder="例如：只列出两种车的总成本，不做决定 / 22:30把手机放在客厅，不带进卧室"
+          v-model="localData.今日焦点问题"
+          placeholder="例如：今天最值得做的一件&quot;有复利&quot;的事是什么？"
           :maxlength="100"
           show-word-limit
         />
-        <div class="hint-text">具体、可执行的小行动</div>
       </el-form-item>
+
+      <!-- 今日行动 + 预计时间 -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <el-form-item label="今日关键行动（MIT-财富）" label-width="140px" class="md:col-span-2" required>
+          <el-input
+            v-model="localData.今日行动"
+            placeholder="例如：整理副业产品的landing page文案"
+            :maxlength="100"
+            show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="预计时间" label-width="100px">
+          <div class="flex items-center gap-2">
+            <el-input-number
+              v-model="localData.预计时间"
+              :min="0"
+              :max="24"
+              :precision="0.5"
+              :step="0.5"
+              controls-position="right"
+              class="flex-1"
+            />
+            <span class="unit-text">小时</span>
+          </div>
+        </el-form-item>
+      </div>
 
       <!-- 事件记录 -->
-      <el-form-item label="生活事件记录" label-width="140px" required>
+      <el-form-item label="财富事件记录" label-width="140px" required>
         <el-input
           v-model="localData.事件记录"
           type="textarea"
           :rows="6"
-          placeholder="只写事实，不评价。发生了什么？我做了什么？结果如何？"
+          placeholder="今天做了哪些跟赚钱/成长有关的事情？有没有拖延、瞎忙？只写事实。"
           :maxlength="300"
           show-word-limit
         />
         <div class="hint-text">200-300字，只记录事实</div>
       </el-form-item>
 
-      <!-- 反思：是否推进 -->
-      <el-form-item label="是否推进了生活课题？" label-width="140px" required>
-        <el-radio-group v-model="localData.反思_是否推进" class="w-full">
-          <el-radio label="是">是</el-radio>
-          <el-radio label="否">否</el-radio>
-          <el-radio label="一点点">一点点</el-radio>
+      <!-- 反思：忙还是在积累 -->
+      <el-form-item label="今天更像是在&quot;忙&quot;还是在&quot;积累&quot;？" label-width="140px" required>
+        <el-radio-group v-model="localData.反思_忙还是在积累" class="w-full">
+          <el-radio label="忙">忙</el-radio>
+          <el-radio label="积累">积累</el-radio>
+          <el-radio label="两者都有">两者都有</el-radio>
         </el-radio-group>
         <el-input
-          v-if="localData.反思_是否推进"
-          v-model="localData.反思_是否推进_说明"
+          v-if="localData.反思_忙还是在积累"
+          v-model="localData.反思_忙还是在积累_说明"
           type="textarea"
           :rows="2"
           placeholder="为什么？"
@@ -61,39 +86,39 @@
         />
       </el-form-item>
 
-      <!-- 反思：今天最消耗的点 -->
-      <el-form-item label="今天最消耗我的一个点" label-width="140px" required>
+      <!-- 反思：今天的浪费 -->
+      <el-form-item label="今天一个可以避免的浪费" label-width="140px" required>
         <el-input
-          v-model="localData.反思_今天最消耗的点"
+          v-model="localData.反思_今天的浪费"
           type="textarea"
           :rows="3"
-          placeholder="今天在生活上，最消耗我的一个点是什么？为什么？"
+          placeholder="时间/金钱/机会的浪费"
           :maxlength="200"
           show-word-limit
         />
       </el-form-item>
 
-      <!-- 反思：明天如何调整 -->
-      <el-form-item label="如果明天重来，如何调整？" label-width="140px" required>
+      <!-- 反思：30天最有复利的一件事 -->
+      <el-form-item label="如果只选一件事坚持30天" label-width="140px" required>
         <el-input
-          v-model="localData.反思_明天如何调整"
+          v-model="localData.反思_30天最有复利的一件事"
           type="textarea"
           :rows="3"
-          placeholder="如果明天重来，我会怎么调整？（一件小事）"
+          placeholder="对财富最有帮助的是什么？"
           :maxlength="200"
           show-word-limit
         />
       </el-form-item>
 
       <!-- 明日一小步 -->
-      <el-form-item label="明日生活一小步" label-width="140px" required>
+      <el-form-item label="明日财富一小步" label-width="140px" required>
         <el-input
           v-model="localData.明日一小步"
-          placeholder="例如：明天只决定：车到底是&quot;刚需&quot;还是&quot;想要&quot;"
+          placeholder="例如：给副业产品写3条用户痛点文案草稿"
           :maxlength="100"
           show-word-limit
         />
-        <div class="hint-text">明日生活承诺（一件小事）</div>
+        <div class="hint-text">明日财富承诺（一件小事）</div>
       </el-form-item>
     </div>
   </div>
@@ -107,13 +132,15 @@ const props = defineProps({
   modelValue: {
     type: Object,
     default: () => ({
-      主问题: '',
+      主目标: '',
+      今日焦点问题: '',
       今日行动: '',
+      预计时间: 0,
       事件记录: '',
-      反思_是否推进: '',
-      反思_是否推进_说明: '',
-      反思_今天最消耗的点: '',
-      反思_明天如何调整: '',
+      反思_忙还是在积累: '',
+      反思_忙还是在积累_说明: '',
+      反思_今天的浪费: '',
+      反思_30天最有复利的一件事: '',
       明日一小步: ''
     })
   }
@@ -124,13 +151,15 @@ const emit = defineEmits(['update:modelValue', 'next', 'prev'])
 // 初始化数据结构
 function initLocalData() {
   const defaultData = {
-    主问题: '',
+    主目标: '',
+    今日焦点问题: '',
     今日行动: '',
+    预计时间: 0,
     事件记录: '',
-    反思_是否推进: '',
-    反思_是否推进_说明: '',
-    反思_今天最消耗的点: '',
-    反思_明天如何调整: '',
+    反思_忙还是在积累: '',
+    反思_忙还是在积累_说明: '',
+    反思_今天的浪费: '',
+    反思_30天最有复利的一件事: '',
     明日一小步: ''
   }
   
@@ -171,13 +200,15 @@ watch(() => props.modelValue, (newVal) => {
 // 初始化时确保数据结构完整
 onMounted(() => {
   const defaultData = {
-    主问题: '',
+    主目标: '',
+    今日焦点问题: '',
     今日行动: '',
+    预计时间: 0,
     事件记录: '',
-    反思_是否推进: '',
-    反思_是否推进_说明: '',
-    反思_今天最消耗的点: '',
-    反思_明天如何调整: '',
+    反思_忙还是在积累: '',
+    反思_忙还是在积累_说明: '',
+    反思_今天的浪费: '',
+    反思_30天最有复利的一件事: '',
     明日一小步: ''
   }
   Object.keys(defaultData).forEach(key => {
@@ -189,12 +220,12 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.life-module {
+.wealth-module {
   @apply space-y-6;
 }
 
 .guide-question {
-  @apply flex items-center gap-3 p-4 bg-green-50 rounded-lg border border-green-100 mb-4;
+  @apply flex items-center gap-3 p-4 bg-yellow-50 rounded-lg border border-yellow-100 mb-4;
 }
 
 .guide-icon {
@@ -211,6 +242,11 @@ onMounted(() => {
 
 .hint-text {
   @apply text-xs text-gray-500 mt-1;
+}
+
+.unit-text {
+  @apply text-sm text-gray-500 whitespace-nowrap;
+  min-width: 32px;
 }
 
 :deep(.el-form-item) {
@@ -271,9 +307,21 @@ onMounted(() => {
     padding: 12px;
   }
 
+  :deep(.el-input-number) {
+    width: 100% !important;
+  }
+
+  :deep(.el-input-number__decrease),
+  :deep(.el-input-number__increase) {
+    width: 48px;
+    height: 48px;
+    font-size: 18px;
+  }
+
   :deep(.el-radio-group) {
     flex-direction: column;
     gap: 8px;
   }
 }
 </style>
+

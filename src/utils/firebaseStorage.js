@@ -39,15 +39,39 @@ export async function getDiaryDataFromFirebase(userId, date) {
 // 保存日记数据到Firebase
 export async function saveDiaryDataToFirebase(userId, date, data) {
   try {
+    if (!userId) {
+      throw new Error('用户ID不能为空')
+    }
+    if (!date) {
+      throw new Error('日期不能为空')
+    }
+    if (!data) {
+      throw new Error('数据不能为空')
+    }
+    
     const docRef = doc(db, getUserDiaryPath(userId, date))
-    await setDoc(docRef, {
+    const dataToSave = {
       ...data,
       date,
       updatedAt: new Date().toISOString()
-    }, { merge: true })
+    }
+    
+    console.log('准备保存到Firestore:', {
+      path: getUserDiaryPath(userId, date),
+      dataKeys: Object.keys(dataToSave)
+    })
+    
+    await setDoc(docRef, dataToSave, { merge: true })
+    
+    console.log('Firestore保存成功')
     return { success: true }
   } catch (error) {
-    console.error('保存数据失败:', error)
+    console.error('保存数据到Firestore失败:', error)
+    console.error('错误详情:', {
+      code: error.code,
+      message: error.message,
+      stack: error.stack
+    })
     throw error
   }
 }

@@ -125,15 +125,16 @@
           :active="activeStep" 
           finish-status="success"
         >
-          <el-step title="时间花销" />
-          <el-step title="LIFE" />
-          <el-step title="AM" />
-          <el-step title="LOVE" />
+          <el-step title="概览" />
+          <el-step title="生活" />
+          <el-step title="项目" />
+          <el-step title="情感" />
+          <el-step title="三省" />
         </el-steps>
         <!-- 模块快速跳转按钮 -->
         <div class="mt-3 md:mt-4 flex justify-center gap-1 md:gap-2 flex-wrap">
           <el-button
-            v-for="(title, index) in ['时间花销', 'LIFE', 'AM', 'LOVE']"
+            v-for="(title, index) in ['概览', '生活', '项目', '情感', '三省']"
             :key="index"
             :type="activeStep === index ? 'primary' : 'default'"
             size="small"
@@ -149,13 +150,13 @@
       <!-- 进度提示 -->
       <div class="mb-6 space-y-2">
         <el-progress
-          :percentage="Math.round((activeStep + 1) / 4 * 100)"
-          :status="activeStep === 3 ? 'success' : undefined"
+          :percentage="Math.round((activeStep + 1) / 5 * 100)"
+          :status="activeStep === 4 ? 'success' : undefined"
           :stroke-width="8"
         />
         <div class="flex flex-col md:flex-row items-start md:items-center justify-between text-xs md:text-sm gap-1 md:gap-0">
           <span class="text-gray-600">
-            当前进度: {{ Math.round((activeStep + 1) / 4 * 100) }}% - {{ ['时间花销', 'LIFE', 'AM', 'LOVE'][activeStep] }}
+            当前进度: {{ Math.round((activeStep + 1) / 5 * 100) }}% - {{ ['概览', '生活', '项目', '情感', '三省'][activeStep] }}
           </span>
           <span 
             v-if="completionInfo.totalMissing > 0"
@@ -177,33 +178,39 @@
         <template #header>
           <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-1 md:gap-0">
             <span class="text-base md:text-lg font-semibold">
-              {{ ['时间花销', 'LIFE（生活）', 'AM（工作）', 'LOVE（情感）'][activeStep] }}
+              {{ ['第一步：今日概览', '第二步：生活（Life）', '第三步：项目（Project）', '第四步：情感（Love）', '第五步：每日三省'][activeStep] }}
             </span>
             <div class="text-xs md:text-sm text-gray-500">
               {{ formatDate(currentDate) }}
             </div>
           </div>
         </template>
-        <TimeSpend
+        <OverviewModule
           v-if="activeStep === 0"
-          v-model="formData.时间花销"
+          v-model="formData.今日概览"
           @next="handleNext"
         />
         <LifeModule
           v-if="activeStep === 1"
-          v-model="formData.LIFE"
+          v-model="formData.生活"
           @next="handleNext"
           @prev="handlePrev"
         />
-        <AmModule
+        <ProjectModule
           v-if="activeStep === 2"
-          v-model="formData.AM"
+          v-model="formData.项目"
           @next="handleNext"
           @prev="handlePrev"
         />
         <LoveModule
           v-if="activeStep === 3"
-          v-model="formData.LOVE"
+          v-model="formData.情感"
+          @next="handleNext"
+          @prev="handlePrev"
+        />
+        <ThreeReflectionsModule
+          v-if="activeStep === 4"
+          v-model="formData.每日三省"
           @prev="handlePrev"
           @complete="handleComplete"
         />
@@ -224,7 +231,7 @@
           </el-button>
           <div v-else class="flex-1 md:flex-initial"></div>
           <el-button
-            v-if="activeStep < 3"
+            v-if="activeStep < 4"
             type="primary"
             @click="handleNext"
             :icon="ArrowRight"
@@ -338,6 +345,80 @@
           </div>
         </el-card>
 
+        <!-- 三大课题总结 -->
+        <el-card class="mb-4" shadow="hover">
+          <template #header>
+            <div class="flex items-center gap-2">
+              <span class="text-2xl">🎯</span>
+              <span class="text-lg font-semibold">三大课题总结</span>
+            </div>
+          </template>
+          <div class="space-y-4">
+            <!-- 生活 -->
+            <div v-if="formData.生活?.主问题" class="topic-summary">
+              <div class="topic-header">
+                <span class="topic-icon">🌱</span>
+                <span class="topic-title">生活</span>
+              </div>
+              <div class="topic-content">
+                <div class="topic-question"><strong>主问题：</strong>{{ formData.生活.主问题 }}</div>
+                <div class="topic-action"><strong>今日行动：</strong>{{ formData.生活.今日行动 }}</div>
+                <div v-if="formData.生活.明日一小步" class="topic-next"><strong>明日一小步：</strong>{{ formData.生活.明日一小步 }}</div>
+              </div>
+            </div>
+            
+            <!-- 项目 -->
+            <div v-if="formData.项目?.今日关键推进" class="topic-summary">
+              <div class="topic-header">
+                <span class="topic-icon">💼</span>
+                <span class="topic-title">项目</span>
+              </div>
+              <div class="topic-content">
+                <div class="topic-question"><strong>今日关键推进：</strong>{{ formData.项目.今日关键推进 }}</div>
+                <div class="topic-action"><strong>项目进度感：</strong>{{ formData.项目.项目进度感 }}%</div>
+                <div v-if="formData.项目.明日任务列表" class="topic-next"><strong>明日任务：</strong>{{ formData.项目.明日任务列表 }}</div>
+              </div>
+            </div>
+            
+            <!-- 情感 -->
+            <div v-if="formData.情感?.今日焦点问题" class="topic-summary">
+              <div class="topic-header">
+                <span class="topic-icon">💕</span>
+                <span class="topic-title">情感</span>
+              </div>
+              <div class="topic-content">
+                <div class="topic-question"><strong>焦点问题：</strong>{{ formData.情感.今日焦点问题 }}</div>
+                <div class="topic-action"><strong>今日行动：</strong>{{ formData.情感.今日行动 }}</div>
+                <div v-if="formData.情感.明日一小步" class="topic-next"><strong>明日一小步：</strong>{{ formData.情感.明日一小步 }}</div>
+              </div>
+            </div>
+          </div>
+        </el-card>
+
+        <!-- 每日三省（核心） -->
+        <el-card v-if="formData.每日三省?.动机偏差 || formData.每日三省?.理想不一致 || formData.每日三省?.理想的一天" class="mb-4 reflections-card" shadow="hover">
+          <template #header>
+            <div class="flex items-center gap-2">
+              <span class="text-2xl">💪</span>
+              <span class="text-lg font-semibold">今日三省（核心）</span>
+            </div>
+          </template>
+          <div class="space-y-4">
+            <div v-if="formData.每日三省?.动机偏差" class="reflection-item">
+              <div class="reflection-question">🤔 动机偏差</div>
+              <div class="reflection-answer">{{ formData.每日三省.动机偏差 }}</div>
+            </div>
+            <div v-if="formData.每日三省?.理想不一致" class="reflection-item">
+              <div class="reflection-question">🎯 理想不一致</div>
+              <div class="reflection-answer">{{ formData.每日三省.理想不一致 }}</div>
+            </div>
+            <div v-if="formData.每日三省?.理想的一天" class="reflection-item">
+              <div class="reflection-question">🌟 理想的一天</div>
+              <div class="reflection-answer">{{ formData.每日三省.理想的一天 }}</div>
+            </div>
+          </div>
+        </el-card>
+
         <!-- 连续天数 -->
         <el-card v-if="overviewStreak > 0" class="mb-4 streak-card" shadow="hover">
           <div class="flex items-center justify-between">
@@ -421,10 +502,11 @@ import { exportToMarkdown, downloadFile } from '../utils/export'
 import { checkOverallComplete } from '../utils/validation'
 import { onAuthChange, getCurrentUser, waitForAuth } from '../utils/firebaseAuth'
 import { subscribeDiaryData } from '../utils/firebaseStorage'
-import TimeSpend from '../components/TimeSpend.vue'
+import OverviewModule from '../components/OverviewModule.vue'
 import LifeModule from '../components/LifeModule.vue'
-import AmModule from '../components/AmModule.vue'
+import ProjectModule from '../components/ProjectModule.vue'
 import LoveModule from '../components/LoveModule.vue'
+import ThreeReflectionsModule from '../components/ThreeReflectionsModule.vue'
 import Login from '../components/Login.vue'
 
 const currentDate = ref(getTodayDate())
@@ -432,12 +514,9 @@ const activeStep = ref(0)
 const showHistoryDialog = ref(false)
 const showLoginDialog = ref(false)
 const user = ref(null)
-const formData = ref({
-  时间花销: {},
-  LIFE: {},
-  AM: {},
-  LOVE: {}
-})
+// 初始化formData，使用getDefaultData确保数据结构完整
+// 初始化formData，使用getDefaultData确保数据结构完整
+const formData = ref(getDefaultData())
 
 // 历史记录日期列表
 const historyDates = ref([])
@@ -479,17 +558,22 @@ function formatDate(dateStr) {
 async function getDateSummary(dateStr) {
   try {
     const data = await getDiaryData(dateStr)
-    const totalHours = (data.时间花销?.副业 || 0) + 
-                       (data.时间花销?.对象 || 0) + 
-                       (data.时间花销?.主职 || 0) + 
-                       (data.时间花销?.娱乐内耗 || 0) + 
-                       (data.时间花销?.通勤 || 0) + 
-                       (data.时间花销?.睡眠 || 0)
-    const hasContent = totalHours > 0 || 
-                       (data.LIFE?.习惯?.length > 0) ||
-                       (data.AM?.项目进度 > 0) ||
-                       (data.LOVE?.新连接数 > 0)
-    return hasContent ? `已填写 (${totalHours.toFixed(1)}h)` : '未填写'
+    // 新数据结构：三大课题模型
+    const hasContent = (data.今日概览?.一句话标题) ||
+                       (data.生活?.主问题) ||
+                       (data.项目?.今日关键推进) ||
+                       (data.情感?.今日焦点问题) ||
+                       (data.每日三省?.动机偏差)
+    
+    if (hasContent) {
+      // 统计已填写的课题数
+      let completedCount = 0
+      if (data.生活?.主问题) completedCount++
+      if (data.项目?.今日关键推进) completedCount++
+      if (data.情感?.今日焦点问题) completedCount++
+      return `已填写 (${completedCount}/3课题)`
+    }
+    return '未填写'
   } catch (e) {
     console.error('获取日期摘要失败:', e)
     return '加载中...'
@@ -534,12 +618,21 @@ async function loadData(date = null) {
   
   try {
     const data = await getDiaryData(targetDate)
-    // 深拷贝避免引用问题
+    // 深拷贝避免引用问题，并确保数据结构完整
+    const defaultData = getDefaultData()
     const cleanData = JSON.parse(JSON.stringify(data))
-    formData.value = cleanData
+    
+    // 确保所有必需的字段都存在，使用默认值填充缺失的字段
+    formData.value = {
+      今日概览: cleanData.今日概览 || defaultData.今日概览,
+      生活: cleanData.生活 || defaultData.生活,
+      项目: cleanData.项目 || defaultData.项目,
+      情感: cleanData.情感 || defaultData.情感,
+      每日三省: cleanData.每日三省 || defaultData.每日三省
+    }
     
     // 更新上次保存的数据（用于比较变化）
-    lastSavedData.value = cleanData
+    lastSavedData.value = JSON.parse(JSON.stringify(formData.value))
     
     // 如果已登录，设置实时监听
     if (user.value) {
@@ -594,13 +687,30 @@ function isDataChanged(newData, oldData) {
 
 // 手动保存（强制保存，忽略变化检测）
 async function saveManually() {
+  // 检查用户是否已登录
+  if (!user.value) {
+    ElMessage.warning('请先登录以保存数据')
+    return
+  }
+  
+  // 检查editingDate是否有效
+  if (!editingDate.value) {
+    editingDate.value = currentDate.value
+  }
+  
   if (saveTimer) {
     clearTimeout(saveTimer)
   }
   try {
     const currentData = JSON.parse(JSON.stringify(formData.value))
+    console.log('手动保存数据到服务器...', {
+      date: editingDate.value,
+      user: user.value.uid,
+      dataKeys: Object.keys(currentData)
+    })
     await saveDiaryData(editingDate.value, currentData)
     lastSavedData.value = currentData
+    console.log('手动保存成功')
     ElMessage.success('数据已保存')
   } catch (error) {
     console.error('保存数据失败:', error)
@@ -611,6 +721,21 @@ async function saveManually() {
 // 防抖保存函数（支持异步，只在数据变化时保存）
 let saveTimer = null
 async function saveData(showMessage = false) {
+  // 检查用户是否已登录
+  if (!user.value) {
+    console.warn('用户未登录，无法保存数据')
+    if (showMessage) {
+      ElMessage.warning('请先登录以保存数据')
+    }
+    return
+  }
+  
+  // 检查editingDate是否有效
+  if (!editingDate.value) {
+    console.warn('editingDate无效，无法保存数据')
+    editingDate.value = currentDate.value
+  }
+  
   if (saveTimer) {
     clearTimeout(saveTimer)
   }
@@ -619,13 +744,23 @@ async function saveData(showMessage = false) {
       const currentData = JSON.parse(JSON.stringify(formData.value))
       
       // 检查数据是否有变化
-      if (!isDataChanged(currentData, lastSavedData.value)) {
+      const hasChanged = isDataChanged(currentData, lastSavedData.value)
+      console.log('数据变化检查:', {
+        hasChanged,
+        editingDate: editingDate.value,
+        userLoggedIn: !!user.value
+      })
+      
+      if (!hasChanged) {
         // 数据没有变化，跳过保存
+        console.log('数据未变化，跳过保存')
         return
       }
       
       // 使用editingDate确保保存到正确的日期
+      console.log('开始保存数据到服务器...', editingDate.value)
       await saveDiaryData(editingDate.value, currentData)
+      console.log('数据保存成功')
       
       // 更新上次保存的数据
       lastSavedData.value = currentData
@@ -642,6 +777,18 @@ async function saveData(showMessage = false) {
 
 // 立即保存（用于切换步骤时，也会检查变化）
 async function saveDataImmediately() {
+  // 检查用户是否已登录
+  if (!user.value) {
+    console.warn('用户未登录，无法保存数据')
+    return
+  }
+  
+  // 检查editingDate是否有效
+  if (!editingDate.value) {
+    console.warn('editingDate无效，使用currentDate')
+    editingDate.value = currentDate.value
+  }
+  
   if (saveTimer) {
     clearTimeout(saveTimer)
   }
@@ -649,18 +796,28 @@ async function saveDataImmediately() {
     const currentData = JSON.parse(JSON.stringify(formData.value))
     
     // 检查数据是否有变化
-    if (!isDataChanged(currentData, lastSavedData.value)) {
+    const hasChanged = isDataChanged(currentData, lastSavedData.value)
+    console.log('立即保存 - 数据变化检查:', {
+      hasChanged,
+      editingDate: editingDate.value,
+      userLoggedIn: !!user.value
+    })
+    
+    if (!hasChanged) {
       // 数据没有变化，跳过保存
+      console.log('立即保存 - 数据未变化，跳过保存')
       return
     }
     
     // 使用editingDate确保保存到正确的日期
+    console.log('立即保存数据到服务器...', editingDate.value)
     await saveDiaryData(editingDate.value, currentData)
+    console.log('立即保存成功')
     
     // 更新上次保存的数据
     lastSavedData.value = currentData
   } catch (error) {
-    console.error('保存数据失败:', error)
+    console.error('立即保存数据失败:', error)
     ElMessage.error('保存数据失败：' + error.message)
   }
 }
@@ -681,7 +838,7 @@ async function handleDateChange(newDate) {
 
 // 步骤点击（支持直接跳转）
 async function handleStepClick(index) {
-  if (index !== activeStep.value) {
+  if (index !== activeStep.value && index <= activeStep.value + 1) {
     await saveDataImmediately()
     activeStep.value = index
   }
@@ -689,11 +846,12 @@ async function handleStepClick(index) {
 
 // 下一步
 async function handleNext() {
-  if (activeStep.value < 3) {
+  if (activeStep.value < 4) {
     await saveDataImmediately()
     activeStep.value++
   }
 }
+
 
 // 上一步
 async function handlePrev() {
@@ -786,11 +944,23 @@ async function handleExport() {
 }
 
 // 用户登录
-function handleUserLogin(userData) {
+async function handleUserLogin(userData) {
   user.value = userData
   showLoginDialog.value = false
+  ElMessage.success('登录成功！')
+  console.log('用户登录成功:', userData.uid)
   // 重新加载数据
-  loadData()
+  await loadData()
+  await updateHistoryDates()
+  
+  // 监听日期列表变化
+  if (window.datesUnsubscribe) {
+    window.datesUnsubscribe()
+  }
+  const { subscribeAllDates } = await import('../utils/firebaseStorage')
+  window.datesUnsubscribe = subscribeAllDates(userData.uid, (dates) => {
+    historyDates.value = dates
+  })
 }
 
 // 用户登出
@@ -849,8 +1019,13 @@ function handleKeydown(event) {
 
 // 监听认证状态
 onMounted(async () => {
+  // 确保editingDate初始化
+  editingDate.value = currentDate.value
+  console.log('初始化editingDate:', editingDate.value)
+  
   // 先等待认证状态初始化
   user.value = await waitForAuth()
+  console.log('初始化时用户状态:', user.value ? `已登录 (${user.value.uid})` : '未登录')
   
   // 初始化加载数据
   await loadData()
@@ -861,6 +1036,7 @@ onMounted(async () => {
   
   // 继续监听认证状态变化
   onAuthChange((currentUser) => {
+    console.log('认证状态变化:', currentUser ? `已登录 (${currentUser.uid})` : '未登录')
     user.value = currentUser
     if (currentUser) {
       // 用户登录后重新加载数据
@@ -880,6 +1056,7 @@ onMounted(async () => {
     } else {
       // 用户登出后清空列表
       historyDates.value = []
+      lastSavedData.value = null
     }
   })
   
@@ -910,9 +1087,14 @@ const completionInfo = computed(() => {
 
 // 自动保存（防抖，不显示消息）
 watch(formData, () => {
-  // 确保使用正确的日期保存
-  if (editingDate.value) {
+  // 确保用户已登录且使用正确的日期保存
+  if (user.value && editingDate.value) {
     saveData(false)
+  } else {
+    console.log('自动保存跳过:', {
+      userLoggedIn: !!user.value,
+      editingDate: editingDate.value
+    })
   }
 }, { deep: true })
 </script>
@@ -1250,6 +1432,81 @@ watch(formData, () => {
   font-weight: normal;
   color: #6b7280;
   margin-left: 0.25rem;
+}
+
+.topic-summary {
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 1rem;
+}
+
+.topic-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.topic-icon {
+  font-size: 1.5rem;
+}
+
+.topic-title {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #1f2937;
+}
+
+.topic-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.topic-question,
+.topic-action,
+.topic-next {
+  font-size: 0.875rem;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.topic-question strong,
+.topic-action strong,
+.topic-next strong {
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.reflections-card {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 1px solid #fbbf24;
+}
+
+.reflection-item {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #fef3c7;
+}
+
+.reflection-item:last-child {
+  border-bottom: none;
+}
+
+.reflection-question {
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}
+
+.reflection-answer {
+  color: #4b5563;
+  font-size: 0.875rem;
+  line-height: 1.75;
+  white-space: pre-wrap;
 }
 
 .streak-card {

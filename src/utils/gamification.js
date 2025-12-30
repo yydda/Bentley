@@ -1,111 +1,142 @@
 // 游戏化系统工具
 
-// 计算成就
+// 计算成就（新版本：三大课题模型）
 export function calculateAchievements(formData, date) {
   const achievements = []
   
-  // 时间花销相关成就
-  const totalHours = (formData.时间花销?.副业 || 0) + 
-                     (formData.时间花销?.对象 || 0) + 
-                     (formData.时间花销?.主职 || 0) + 
-                     (formData.时间花销?.娱乐内耗 || 0) + 
-                     (formData.时间花销?.通勤 || 0) + 
-                     (formData.时间花销?.睡眠 || 0)
+  // 新数据结构：三大课题模型
+  const hasOverview = formData.今日概览?.一句话标题
+  const hasLife = formData.生活?.主问题
+  const hasWealth = formData.项目?.今日关键推进
+  const hasLove = formData.情感?.今日焦点问题
+  const hasReflections = formData.每日三省?.动机偏差
   
-  if (totalHours >= 22 && totalHours <= 26) {
-    achievements.push({
-      icon: '⏰',
-      title: '时间管理大师',
-      description: '时间分配合理，完美的一天！'
-    })
-  }
+  const energyLevel = formData.今日概览?.能量值 || 0
+  const stressLevel = formData.今日概览?.压力值 || 0
   
-  const happyCount = formData.时间花销?.评分?.filter(e => e === '💓').length || 0
-  if (happyCount >= 4) {
-    achievements.push({
-      icon: '😊',
-      title: '快乐满满',
-      description: '今天有4个以上的满意评分！'
-    })
-  }
-  
-  // LIFE相关成就
-  if (formData.LIFE?.习惯?.length >= 5) {
-    achievements.push({
-      icon: '🌟',
-      title: '习惯达人',
-      description: '记录了5个以上的习惯！'
-    })
-  }
-  
-  if (formData.LIFE?.坚持天数 >= 7) {
-    achievements.push({
-      icon: '🔥',
-      title: '坚持一周',
-      description: '连续坚持7天了，太棒了！'
-    })
-  }
-  
-  // AM相关成就
-  if (formData.AM?.项目进度 >= 100) {
+  // 完成度成就
+  const completedTopics = [hasLife, hasWealth, hasLove].filter(Boolean).length
+  if (completedTopics === 3) {
     achievements.push({
       icon: '🎯',
-      title: '项目完成',
-      description: '项目进度达到100%！'
+      title: '三大课题全完成',
+      description: '生活、项目、情感三大课题全部完成！'
     })
   }
   
-  if (formData.AM?.时间追踪 >= 8) {
+  // 能量成就
+  if (energyLevel >= 4) {
     achievements.push({
-      icon: '💪',
-      title: '高效工作',
-      description: '工作时间超过8小时！'
+      icon: '⚡',
+      title: '能量满满',
+      description: '今天能量值很高！'
     })
   }
   
-  // LOVE相关成就
-  if (formData.LOVE?.新连接数 > 0) {
+  // 压力管理成就
+  if (stressLevel <= 2) {
     achievements.push({
-      icon: '🤝',
-      title: '社交达人',
-      description: '今天建立了新的连接！'
+      icon: '😌',
+      title: '压力管理',
+      description: '压力值很低，状态很好！'
+    })
+  }
+  
+  // 深度反思成就
+  if (hasReflections && formData.每日三省?.理想不一致 && formData.每日三省?.理想的一天) {
+    achievements.push({
+      icon: '💭',
+      title: '深度反省',
+      description: '完成了每日三省，深度思考！'
+    })
+  }
+  
+  // 行动力成就
+  if (hasLife && hasWealth && hasLove && 
+      formData.生活?.今日行动 && 
+      formData.项目?.今日项目记录 && 
+      formData.情感?.今日行动) {
+    achievements.push({
+      icon: '🚀',
+      title: '行动力爆表',
+      description: '三大课题都有具体行动！'
+    })
+  }
+  
+  // 明日计划成就
+  if (formData.生活?.明日一小步 && 
+      formData.项目?.明日任务列表 && 
+      formData.情感?.明日一小步) {
+    achievements.push({
+      icon: '📅',
+      title: '规划达人',
+      description: '三大课题都规划了明日行动！'
     })
   }
   
   // 完整性成就
-  const hasAllSections = formData.时间花销 && formData.LIFE && formData.AM && formData.LOVE
-  if (hasAllSections) {
-    achievements.push({
-      icon: '📝',
-      title: '完整记录',
-      description: '所有模块都已填写！'
-    })
+  if (isNewFormat) {
+    const hasAllSections = formData.省身?.总结 && 
+                          formData.省事?.总结 && 
+                          formData.省人?.总结 &&
+                          formData.每日三省?.动机偏差
+    if (hasAllSections) {
+      achievements.push({
+        icon: '📝',
+        title: '完整记录',
+        description: '所有模块都已填写！'
+      })
+    }
+  } else {
+    const hasAllSections = formData.时间花销 && formData.LIFE && formData.AM && formData.LOVE
+    if (hasAllSections) {
+      achievements.push({
+        icon: '📝',
+        title: '完整记录',
+        description: '所有模块都已填写！'
+      })
+    }
   }
   
   return achievements
 }
 
-// 计算统计数据
+// 计算统计数据（新版本：三大课题模型）
 export function calculateStats(formData) {
-  const totalHours = (formData.时间花销?.副业 || 0) + 
-                     (formData.时间花销?.对象 || 0) + 
-                     (formData.时间花销?.主职 || 0) + 
-                     (formData.时间花销?.娱乐内耗 || 0) + 
-                     (formData.时间花销?.通勤 || 0) + 
-                     (formData.时间花销?.睡眠 || 0)
+  // 新数据结构：三大课题模型
+  const hasOverview = formData.今日概览?.一句话标题
+  const hasLife = formData.生活?.主问题
+  const hasWealth = formData.项目?.今日关键推进
+  const hasLove = formData.情感?.今日焦点问题
+  const hasReflections = formData.每日三省?.动机偏差
   
-  const happyCount = formData.时间花销?.评分?.filter(e => e === '💓').length || 0
-  const habitCount = formData.LIFE?.习惯?.length || 0
-  const neihaoCount = formData.LIFE?.内耗?.length || 0
+  const energyLevel = formData.今日概览?.能量值 || 0
+  const stressLevel = formData.今日概览?.压力值 || 0
+  
+  // 统计完成的课题数
+  const completedTopics = [hasLife, hasWealth, hasLove].filter(Boolean).length
+  
+  // 统计有明日计划的课题数
+  const plannedTopics = [
+    formData.生活?.明日一小步,
+    formData.项目?.明日任务列表,
+    formData.情感?.明日一小步
+  ].filter(Boolean).length
+  
+  // 统计有具体行动的课题数
+  const actionTopics = [
+    formData.生活?.今日行动,
+    formData.项目?.今日项目记录,
+    formData.情感?.今日行动
+  ].filter(Boolean).length
   
   return {
-    时间总和: totalHours.toFixed(1),
-    满意度: `${happyCount}/5`,
-    习惯数: habitCount,
-    内耗数: neihaoCount,
-    项目进度: formData.AM?.项目进度 || 0,
-    工作小时: formData.AM?.时间追踪 || 0,
-    新连接: formData.LOVE?.新连接数 || 0
+    完成课题数: `${completedTopics}/3`,
+    能量值: `${energyLevel}/5`,
+    压力值: `${stressLevel}/5`,
+    行动力: `${actionTopics}/3`,
+    规划力: `${plannedTopics}/3`,
+    深度反省: hasReflections ? '是' : '否'
   }
 }
 
@@ -134,19 +165,30 @@ export function generateEncouragement(achievements, stats) {
   }
   
   // 根据统计数据添加鼓励
-  if (parseFloat(stats.时间总和) >= 22 && parseFloat(stats.时间总和) <= 26) {
+  const completedTopics = parseInt(stats.完成课题数?.split('/')[0] || '0')
+  if (completedTopics === 3) {
     encouragements.push({
-      type: 'time',
-      message: '时间分配很合理，继续保持！',
-      emoji: '⏰'
+      type: 'topics',
+      message: '三大课题全部完成，太棒了！',
+      emoji: '🎯'
     })
   }
   
-  if (parseInt(stats.满意度.split('/')[0]) >= 3) {
+  const energyLevel = parseInt(stats.能量值?.split('/')[0] || '0')
+  if (energyLevel >= 4) {
     encouragements.push({
-      type: 'happy',
-      message: '看起来今天过得很开心呢！',
-      emoji: '😊'
+      type: 'energy',
+      message: '能量值很高，状态很好！',
+      emoji: '⚡'
+    })
+  }
+  
+  const stressLevel = parseInt(stats.压力值?.split('/')[0] || '0')
+  if (stressLevel <= 2) {
+    encouragements.push({
+      type: 'stress',
+      message: '压力值很低，保持轻松！',
+      emoji: '😌'
     })
   }
   
