@@ -9,10 +9,44 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* 移动端优化 */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 #app {
   min-height: 100vh;
   background-color: #f5f7fa;
+}
+
+/* 移动端全局优化 */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* 优化滚动性能 */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 优化输入框在移动端的显示 */
+  input, textarea {
+    font-size: 16px; /* 防止iOS自动缩放 */
+  }
+
+  /* 优化触摸目标大小 */
+  button, a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* 小屏幕手机优化 */
+@media (max-width: 480px) {
+  body {
+    font-size: 13px;
+  }
 }
 
