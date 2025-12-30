@@ -204,26 +204,98 @@ npm run dev
 
 ## 🚀 第七步：部署到GitHub Pages
 
-### 7.1 构建项目
+### 7.1 创建GitHub仓库
+
+#### 7.1.1 在GitHub上创建新仓库
+1. 访问 [GitHub](https://github.com/)
+2. 点击右上角的 **"+"** 按钮，选择 **"New repository"**
+3. 填写仓库信息：
+   - **Repository name**：输入仓库名称（如：`my-diary-app`）
+   - **Description**：可选，填写描述
+   - **Visibility**：
+     - **如果使用GitHub Pages（免费）**：必须选择 **Public**（公开）
+     - **如果使用Firebase Hosting或其他部署方式**：可以选择 **Private**（私有）
+     - **如果使用GitHub Pro/Team账户**：可以选择 **Private**（私有）
+   - **不要**勾选 "Initialize this repository with a README"（如果本地已有代码）
+4. 点击 **"Create repository"**
+
+> **💡 关于仓库可见性说明：**
+> - **GitHub Pages免费版**：只支持公开仓库，代码会公开可见
+> - **GitHub Pages付费版**（Pro/Team）：支持私有仓库
+> - **Firebase Hosting**：支持私有仓库，代码不会公开
+> - **数据安全性**：即使仓库公开，Firebase数据仍然安全（通过Firebase安全规则保护）
+
+#### 7.1.2 初始化本地Git仓库（如果还没有）
+```bash
+# 在项目根目录执行
+git init
+```
+
+#### 7.1.3 连接本地仓库到GitHub
+```bash
+# 添加远程仓库（将 YOUR_USERNAME 和 YOUR_REPO_NAME 替换为你的实际值）
+git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+
+# 或者使用SSH（如果你配置了SSH密钥）
+git remote add origin git@github.com:YOUR_USERNAME/YOUR_REPO_NAME.git
+```
+
+### 7.2 构建项目
 ```bash
 npm run build
 ```
 
-### 7.2 提交代码
+### 7.3 提交代码
 ```bash
+# 添加所有文件
 git add .
+
+# 提交代码
 git commit -m "添加Firebase支持"
-git push
+
+# 推送到GitHub（首次推送）
+git branch -M main
+git push -u origin main
 ```
 
-### 7.3 配置GitHub Pages
-1. 在GitHub仓库设置中，启用GitHub Pages
-2. 选择 `gh-pages` 分支或 `main` 分支的 `docs` 文件夹
-3. 等待部署完成
+### 7.4 配置GitHub Pages
 
-### 7.4 更新授权域名
+#### 7.4.1 启用GitHub Pages
+1. 在GitHub上打开你的仓库
+2. 点击顶部的 **"Settings"**（设置）标签
+3. 在左侧菜单中找到 **"Pages"**（页面）选项
+4. 在 **"Source"**（源）部分：
+   - 选择 **"Deploy from a branch"**（从分支部署）
+   - **Branch**：选择 `main` 分支
+   - **Folder**：选择 `/ (root)` 或 `/docs`（如果构建输出在docs文件夹）
+5. 点击 **"Save"**（保存）
+
+#### 7.4.2 使用GitHub Actions自动部署（推荐）
+如果项目中有 `.github/workflows/deploy.yml` 文件：
+1. 在 **Settings > Pages** 中
+2. 将 **Source** 改为 **"GitHub Actions"**
+3. 每次推送到 `main` 分支时，会自动构建并部署
+
+#### 7.4.3 等待部署完成
+- 部署通常需要1-2分钟
+- 部署完成后，会显示你的网站地址：
+  - **如果使用根域名**：`https://YOUR_USERNAME.github.io/`
+  - **如果使用子路径**：`https://YOUR_USERNAME.github.io/YOUR_REPO_NAME/`
+
+> **⚠️ 重要提示：关于子路径部署**
+> 
+> 如果你的 `YOUR_USERNAME.github.io` 已经用于其他项目（如博客），新项目需要部署到子路径：
+> 
+> 1. **仓库名就是子路径**：例如仓库名是 `bentley`，访问地址就是 `yydda.github.io/bentley/`
+> 2. **配置已自动处理**：项目已配置为自动使用仓库名作为子路径
+> 3. **如果使用根域名**：在 `.github/workflows/deploy.yml` 中注释掉 `VITE_BASE_PATH` 环境变量
+
+### 7.5 更新授权域名
 1. 在Firebase控制台的Authentication设置中
 2. 添加你的GitHub Pages域名到授权域名列表
+3. 域名格式：
+   - **根域名**：`YOUR_USERNAME.github.io`（不需要包含仓库路径）
+   - **子路径部署**：同样只需要添加 `YOUR_USERNAME.github.io`（Firebase会自动处理子路径）
 
 ---
 
