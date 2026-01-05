@@ -98,10 +98,15 @@
           />
           <div class="todo-content-compact" @click.stop="editTodo(todo)">
             <span class="todo-title-compact-text">
-              {{ todo.事项内容 || '未命名事项' }}
+              {{ todo.任务内容 || todo.事项内容 || '未命名事项' }}
             </span>
-            <div class="todo-meta-compact" v-if="todo.优先级 || todo.关联主线 || todo.来源计划 || todo.备注">
+            <div class="todo-meta-compact" v-if="todo.开始时间 || todo.优先级 || todo.关联主线 || todo.来源计划 || todo.计划状态 || todo.备注">
+              <span v-if="todo.开始时间 && todo.结束时间" class="meta-tag time-tag">
+                {{ todo.开始时间 }}-{{ todo.结束时间 }}
+              </span>
+              <span v-if="todo.预计时间 > 0" class="meta-tag duration-tag">{{ todo.预计时间 }}h</span>
               <span v-if="todo.优先级" class="priority-dot" :class="`priority-${todo.优先级}`"></span>
+              <span v-if="todo.计划状态" class="meta-tag status-tag">{{ todo.计划状态 }}</span>
               <span v-if="todo.关联主线" class="meta-tag thread-tag">{{ getThreadName(todo.关联主线) }}</span>
               <span v-if="todo.来源计划" class="meta-tag plan-tag">计划</span>
               <span v-if="todo.备注" class="meta-tag note-tag">{{ todo.备注 }}</span>
@@ -137,10 +142,15 @@
           />
           <div class="todo-content-compact" @click.stop="editTodo(todo)">
             <span class="todo-title-compact-text">
-              {{ todo.事项内容 || '未命名事项' }}
+              {{ todo.任务内容 || todo.事项内容 || '未命名事项' }}
             </span>
-            <div class="todo-meta-compact" v-if="todo.优先级 || todo.关联主线 || todo.来源计划 || todo.备注">
+            <div class="todo-meta-compact" v-if="todo.开始时间 || todo.优先级 || todo.关联主线 || todo.来源计划 || todo.计划状态 || todo.备注">
+              <span v-if="todo.开始时间 && todo.结束时间" class="meta-tag time-tag">
+                {{ todo.开始时间 }}-{{ todo.结束时间 }}
+              </span>
+              <span v-if="todo.预计时间 > 0" class="meta-tag duration-tag">{{ todo.预计时间 }}h</span>
               <span v-if="todo.优先级" class="priority-dot" :class="`priority-${todo.优先级}`"></span>
+              <span v-if="todo.计划状态" class="meta-tag status-tag">{{ todo.计划状态 }}</span>
               <span v-if="todo.关联主线" class="meta-tag thread-tag">{{ getThreadName(todo.关联主线) }}</span>
               <span v-if="todo.来源计划" class="meta-tag plan-tag">计划</span>
               <span v-if="todo.备注" class="meta-tag note-tag">{{ todo.备注 }}</span>
@@ -180,9 +190,14 @@
             />
             <div class="todo-content-compact" @click.stop="editTodo(todo)">
               <span class="todo-title-compact-text completed">
-                {{ todo.事项内容 || '未命名事项' }}
+                {{ todo.任务内容 || todo.事项内容 || '未命名事项' }}
               </span>
-              <div class="todo-meta-compact" v-if="todo.关联主线 || todo.来源计划">
+              <div class="todo-meta-compact" v-if="todo.开始时间 || todo.关联主线 || todo.来源计划 || todo.计划状态">
+                <span v-if="todo.开始时间 && todo.结束时间" class="meta-tag time-tag">
+                  {{ todo.开始时间 }}-{{ todo.结束时间 }}
+                </span>
+                <span v-if="todo.预计时间 > 0" class="meta-tag duration-tag">{{ todo.预计时间 }}h</span>
+                <span v-if="todo.计划状态" class="meta-tag status-tag">{{ todo.计划状态 }}</span>
                 <span v-if="todo.关联主线" class="meta-tag thread-tag">{{ getThreadName(todo.关联主线) }}</span>
                 <span v-if="todo.来源计划" class="meta-tag plan-tag">计划</span>
               </div>
@@ -205,34 +220,88 @@
       @close="editingTodo = null"
     >
       <div v-if="editingTodo" class="edit-form">
-        <el-form label-width="100px">
-          <el-form-item label="事项内容" required>
+        <el-form label-width="120px">
+          <el-form-item label="任务内容" required>
             <el-input
-              v-model="editingTodo.事项内容"
-              placeholder="输入事项内容"
-              :maxlength="200"
+              v-model="editingTodo.任务内容"
+              :model-value="editingTodo.任务内容 || editingTodo.事项内容"
+              @update:model-value="editingTodo.任务内容 = $event"
+              placeholder="明天要做什么？"
+              :maxlength="100"
               show-word-limit
             />
           </el-form-item>
-          <el-form-item label="状态">
-            <el-select v-model="editingTodo.状态" class="w-full">
-              <el-option label="待办" value="待办" />
-              <el-option label="进行中" value="进行中" />
-              <el-option label="已完成" value="已完成" />
-              <el-option label="已取消" value="已取消" />
-            </el-select>
+          
+          <el-form-item label="时间安排">
+            <div class="time-range-picker">
+              <el-time-picker
+                v-model="editingTodo.开始时间"
+                placeholder="开始时间"
+                format="HH:mm"
+                value-format="HH:mm"
+                class="time-picker-start"
+                :clearable="true"
+                @change="updateEstimatedTime"
+              />
+              <span class="time-separator">至</span>
+              <el-time-picker
+                v-model="editingTodo.结束时间"
+                placeholder="结束时间"
+                format="HH:mm"
+                value-format="HH:mm"
+                class="time-picker-end"
+                :clearable="true"
+                @change="updateEstimatedTime"
+              />
+            </div>
+            <div class="time-hint">
+              <el-button 
+                text 
+                size="small" 
+                @click="setQuickTime('morning')"
+                class="quick-time-btn"
+              >
+                早上
+              </el-button>
+              <el-button 
+                text 
+                size="small" 
+                @click="setQuickTime('afternoon')"
+                class="quick-time-btn"
+              >
+                下午
+              </el-button>
+              <el-button 
+                text 
+                size="small" 
+                @click="setQuickTime('evening')"
+                class="quick-time-btn"
+              >
+                晚上
+              </el-button>
+            </div>
           </el-form-item>
-          <el-form-item label="优先级">
-            <el-select v-model="editingTodo.优先级" placeholder="选择优先级" clearable class="w-full">
-              <el-option label="高" value="高" />
-              <el-option label="中" value="中" />
-              <el-option label="低" value="低" />
-            </el-select>
+
+          <el-form-item label="预计时间">
+            <div class="flex items-center gap-2">
+              <el-input-number
+                v-model="editingTodo.预计时间"
+                :min="0"
+                :max="24"
+                :precision="1"
+                :step="0.5"
+                controls-position="right"
+                class="flex-1"
+                placeholder="0"
+              />
+              <span class="unit-text">小时</span>
+            </div>
           </el-form-item>
+
           <el-form-item label="关联主线">
             <el-select
               v-model="editingTodo.关联主线"
-              placeholder="选择主线（可选）"
+              placeholder="选择这个计划是为了推进哪条主线"
               clearable
               class="w-full"
             >
@@ -244,13 +313,45 @@
               />
             </el-select>
           </el-form-item>
+
+          <el-form-item label="计划状态">
+            <el-select
+              v-model="editingTodo.计划状态"
+              placeholder="选择计划状态"
+              clearable
+              class="w-full"
+            >
+              <el-option label="新计划" value="新计划" />
+              <el-option label="延续昨日" value="延续昨日" />
+              <el-option label="调整优化" value="调整优化" />
+              <el-option label="紧急重要" value="紧急重要" />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item label="状态">
+            <el-select v-model="editingTodo.状态" class="w-full">
+              <el-option label="待办" value="待办" />
+              <el-option label="进行中" value="进行中" />
+              <el-option label="已完成" value="已完成" />
+              <el-option label="已取消" value="已取消" />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item label="优先级">
+            <el-select v-model="editingTodo.优先级" placeholder="选择优先级" clearable class="w-full">
+              <el-option label="高" value="高" />
+              <el-option label="中" value="中" />
+              <el-option label="低" value="低" />
+            </el-select>
+          </el-form-item>
+
           <el-form-item label="备注">
             <el-input
               v-model="editingTodo.备注"
               type="textarea"
-              :rows="3"
-              placeholder="备注（可选）"
-              :maxlength="500"
+              :rows="2"
+              placeholder="其他说明..."
+              :maxlength="200"
               show-word-limit
             />
           </el-form-item>
@@ -324,8 +425,9 @@ const filteredTodos = computed(() => {
   if (searchText.value.trim()) {
     const keyword = searchText.value.toLowerCase()
     result = result.filter(todo => 
-      todo.事项内容?.toLowerCase().includes(keyword) ||
+      (todo.任务内容 || todo.事项内容)?.toLowerCase().includes(keyword) ||
       todo.备注?.toLowerCase().includes(keyword) ||
+      todo.计划状态?.toLowerCase().includes(keyword) ||
       getThreadName(todo.关联主线)?.toLowerCase().includes(keyword)
     )
   }
@@ -361,13 +463,16 @@ const completedTodos = computed(() => {
   })
 })
 
-// 获取事项排序时间：优先使用关联的明日计划开始时间，其次使用创建时间
+// 获取事项排序时间：优先使用事项的开始时间，其次使用关联计划的开始时间，最后使用创建时间
 function getTodoSortTime(todo) {
-  // 关联明日计划的开始时间
+  // 优先使用事项自己的开始时间
+  if (todo.开始时间) {
+    return new Date(`2000-01-01T${todo.开始时间}:00`).getTime()
+  }
+  // 其次使用关联明日计划的开始时间
   if (todo.来源计划 && props.tomorrowPlans?.计划列表?.length) {
     const plan = props.tomorrowPlans.计划列表.find(p => p.计划ID === todo.来源计划)
     if (plan && plan.开始时间) {
-      // 仅用时间部分排序，例如 08:00、14:30
       return new Date(`2000-01-01T${plan.开始时间}:00`).getTime()
     }
   }
@@ -388,7 +493,7 @@ function sortTodos(items) {
     const priorityDiff = (priorityOrder[b.优先级] || 0) - (priorityOrder[a.优先级] || 0)
     if (priorityDiff !== 0) return priorityDiff
 
-    // 时间和优先级都相同，按创建时间（新的在后，保持相对稳定）
+    // 时间和优先级都相同，按创建时间（早的在前，保持相对稳定）
     const createdA = new Date(a.创建时间 || a.更新时间 || 0).getTime()
     const createdB = new Date(b.创建时间 || b.更新时间 || 0).getTime()
     return createdA - createdB
@@ -439,11 +544,15 @@ function handleQuickAdd() {
 
   const newTodo = {
     事项ID: `todo_${Date.now()}_${Math.random()}`,
-    事项内容: content,
+    任务内容: content,
     状态: '待办',
+    开始时间: '',
+    结束时间: '',
+    预计时间: 0,
     关联主线: '',
-    来源计划: '',
+    计划状态: '',
     优先级: '',
+    来源计划: '',
     备注: '',
     创建时间: new Date().toISOString(),
     更新时间: new Date().toISOString()
@@ -458,11 +567,15 @@ function handleQuickAdd() {
 function addTodo() {
   const newTodo = {
     事项ID: `todo_${Date.now()}_${Math.random()}`,
-    事项内容: '',
+    任务内容: '',
     状态: '待办',
+    开始时间: '',
+    结束时间: '',
+    预计时间: 0,
     关联主线: '',
-    来源计划: '',
+    计划状态: '',
     优先级: '',
+    来源计划: '',
     备注: '',
     创建时间: new Date().toISOString(),
     更新时间: new Date().toISOString()
@@ -502,14 +615,71 @@ function toggleTodoStatus(todo, targetStatus = null) {
 // 编辑事项
 function editTodo(todo) {
   editingTodo.value = JSON.parse(JSON.stringify(todo))
+  // 兼容旧字段名
+  if (!editingTodo.value.任务内容 && editingTodo.value.事项内容) {
+    editingTodo.value.任务内容 = editingTodo.value.事项内容
+  }
+  // 确保所有字段存在
+  if (!editingTodo.value.开始时间) editingTodo.value.开始时间 = ''
+  if (!editingTodo.value.结束时间) editingTodo.value.结束时间 = ''
+  if (!editingTodo.value.预计时间) editingTodo.value.预计时间 = 0
+  if (!editingTodo.value.计划状态) editingTodo.value.计划状态 = ''
   showEditDialog.value = true
+}
+
+// 更新预计时间
+function updateEstimatedTime() {
+  if (editingTodo.value && editingTodo.value.开始时间 && editingTodo.value.结束时间) {
+    const [startHour, startMin] = editingTodo.value.开始时间.split(':').map(Number)
+    const [endHour, endMin] = editingTodo.value.结束时间.split(':').map(Number)
+    const startMinutes = startHour * 60 + startMin
+    const endMinutes = endHour * 60 + endMin
+    if (endMinutes > startMinutes) {
+      editingTodo.value.预计时间 = Math.round(((endMinutes - startMinutes) / 60) * 10) / 10
+    } else {
+      editingTodo.value.预计时间 = 0
+    }
+  }
+}
+
+// 快速设置时间段
+function setQuickTime(type) {
+  if (!editingTodo.value) return
+  const timeRanges = {
+    morning: { start: '08:00', end: '12:00' },
+    afternoon: { start: '14:00', end: '18:00' },
+    evening: { start: '19:00', end: '22:00' }
+  }
+  const range = timeRanges[type]
+  if (range) {
+    editingTodo.value.开始时间 = range.start
+    editingTodo.value.结束时间 = range.end
+    editingTodo.value.预计时间 = type === 'morning' ? 4 : type === 'afternoon' ? 4 : 3
+  }
 }
 
 // 保存编辑
 function saveEditTodo() {
-  if (!editingTodo.value.事项内容?.trim()) {
-    ElMessage.warning('请输入事项内容')
+  const content = editingTodo.value.任务内容 || editingTodo.value.事项内容
+  if (!content?.trim()) {
+    ElMessage.warning('请输入任务内容')
     return
+  }
+
+  // 确保字段统一
+  if (!editingTodo.value.任务内容 && editingTodo.value.事项内容) {
+    editingTodo.value.任务内容 = editingTodo.value.事项内容
+  }
+
+  // 计算预计时间（如果有开始和结束时间）
+  if (editingTodo.value.开始时间 && editingTodo.value.结束时间) {
+    const [startHour, startMin] = editingTodo.value.开始时间.split(':').map(Number)
+    const [endHour, endMin] = editingTodo.value.结束时间.split(':').map(Number)
+    const startMinutes = startHour * 60 + startMin
+    const endMinutes = endHour * 60 + endMin
+    if (endMinutes > startMinutes) {
+      editingTodo.value.预计时间 = Math.round(((endMinutes - startMinutes) / 60) * 10) / 10
+    }
   }
 
   const index = todos.value.findIndex(t => t.事项ID === editingTodo.value.事项ID)
@@ -544,10 +714,14 @@ function importFromPlans() {
     if (!alreadyImported && plan.任务内容) {
       const newTodo = {
         事项ID: `todo_${Date.now()}_${Math.random()}`,
-        事项内容: plan.任务内容,
+        任务内容: plan.任务内容,
         状态: '待办',
-        优先级: '',
+        开始时间: plan.开始时间 || '',
+        结束时间: plan.结束时间 || '',
+        预计时间: plan.预计时间 || 0,
         关联主线: plan.关联主线 || '',
+        计划状态: plan.计划状态 || '',
+        优先级: '',
         来源计划: plan.计划ID,
         备注: plan.备注 || '',
         创建时间: new Date().toISOString(),
@@ -818,6 +992,20 @@ onMounted(() => {
   text-overflow: ellipsis;
 }
 
+.time-tag {
+  @apply bg-blue-50 text-blue-600;
+  font-weight: 500;
+}
+
+.duration-tag {
+  @apply bg-purple-50 text-purple-600;
+  font-weight: 500;
+}
+
+.status-tag {
+  @apply bg-orange-50 text-orange-600;
+}
+
 .thread-tag {
   @apply bg-blue-50 text-blue-600;
 }
@@ -856,6 +1044,33 @@ onMounted(() => {
 /* 编辑对话框 */
 .edit-form {
   @apply space-y-4;
+}
+
+.time-range-picker {
+  @apply flex items-center gap-2;
+}
+
+.time-picker-start,
+.time-picker-end {
+  @apply flex-1;
+}
+
+.time-separator {
+  @apply text-gray-500 text-sm;
+  flex-shrink: 0;
+}
+
+.time-hint {
+  @apply flex items-center gap-2 mt-2;
+}
+
+.quick-time-btn {
+  @apply text-xs;
+}
+
+.unit-text {
+  @apply text-gray-500 text-sm;
+  flex-shrink: 0;
 }
 
 .dialog-footer {
