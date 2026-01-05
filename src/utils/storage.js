@@ -1,6 +1,6 @@
 // 数据存储工具 - 仅使用Firebase
 
-import { getDiaryDataFromFirebase, saveDiaryDataToFirebase, getAllDatesFromFirebase } from './firebaseStorage'
+import { getDiaryDataFromFirebase, saveDiaryDataToFirebase, getAllDatesFromFirebase, getLifeThreadsFromFirebase, saveLifeThreadsToFirebase } from './firebaseStorage'
 import { waitForAuth } from './firebaseAuth'
 import { migrateOldDataToNew, needsMigration } from './migration'
 
@@ -81,7 +81,67 @@ export async function getAllDates() {
   return await getAllDatesFromFirebase(user.uid)
 }
 
-// 获取默认数据结构（新版本：三大人生课题模型）
+// 获取人生主线
+export async function getLifeThreads() {
+  const user = await waitForAuth()
+  if (!user) {
+    return []
+  }
+  
+  return await getLifeThreadsFromFirebase(user.uid)
+}
+
+// 保存人生主线
+export async function saveLifeThreads(threads) {
+  const user = await waitForAuth()
+  if (!user) {
+    throw new Error('请先登录以保存数据')
+  }
+  
+  if (!Array.isArray(threads)) {
+    throw new Error('主线数据必须是数组')
+  }
+  
+  await saveLifeThreadsToFirebase(user.uid, threads)
+}
+
+// 获取默认主线模板
+export function getDefaultLifeThreads() {
+  return [
+    {
+      主线ID: 'thread_1',
+      主线名称: '事业突破',
+      当前阶段: '探索期',
+      当前关键问题: '',
+      三个月目标: '',
+      创建时间: new Date().toISOString(),
+      最后更新时间: new Date().toISOString(),
+      是否激活: true
+    },
+    {
+      主线ID: 'thread_2',
+      主线名称: '关系建立',
+      当前阶段: '探索期',
+      当前关键问题: '',
+      三个月目标: '',
+      创建时间: new Date().toISOString(),
+      最后更新时间: new Date().toISOString(),
+      是否激活: true
+    },
+    {
+      主线ID: 'thread_3',
+      主线名称: '健康管理',
+      当前阶段: '探索期',
+      当前关键问题: '',
+      三个月目标: '',
+      创建时间: new Date().toISOString(),
+      最后更新时间: new Date().toISOString(),
+      是否激活: true
+    }
+  ]
+}
+
+// 获取默认数据结构（新版本：人生主线系统）
 export function getDefaultData() {
   return {
     // 第一步：今日概览
@@ -92,50 +152,64 @@ export function getDefaultData() {
       今日最关键一件事: '' // 必填
     },
     
-    // 第二步：生活（Life）
-    生活: {
-      主问题: '', // 必填：今天想思考/推进的生活课题
-      今日行动: '', // 必填：具体、可执行的小行动
-      事件记录: '', // 必填：200-300字，只写事实
-      反思_是否推进: '', // 必填：是否推进了生活课题
-      反思_今天最消耗的点: '', // 必填：今天最消耗我的一个点
-      反思_明天如何调整: '', // 必填：如果明天重来，如何调整
-      明日一小步: '' // 必填：明日生活承诺
-    },
+    // 第二步：今日主线推进（核心）
+    今日主线推进: [], // 数组，每个元素对应一条主线的推进记录
     
-    // 第三步：项目（Project）
-    项目: {
-      项目名称: '', // 当前主项目（可选，可复用）
-      项目阶段: '', // 项目阶段：探索期/MVP/打磨期/上线后迭代（可选）
-      今日关键推进: '', // 必填：今日最关键推进点（一句话）
-      今日项目记录: '', // 必填：今日项目工作清单（事实）
-      今日项目产出: '', // 可选：今日可见产出
-      项目进度感: 0, // 0-100%，项目进度感
-      最有效动作: '', // 必填：今天最有效的一个动作
-      今日浪费: '', // 必填：今天最没必要的一件事
-      卡点与疑问: '', // 必填：卡点与未解决问题
-      明日任务列表: '', // 必填：明日1-3个项目任务
-      明日优先级理由: '', // 可选：明日优先级说明
-      明日风险与准备: '' // 可选：明日风险与对策
-    },
+    // 第三步：决策与内耗（可选，但重要）
+    决策与内耗: [], // 数组，每个元素是一个决策对象
     
-    // 第四步：情感（Love）
-    情感: {
-      主课题: '', // 当前主课题（可选，可复用）
-      今日焦点问题: '', // 必填：今天的情感焦点问题
-      今日行动: '', // 必填：今日情感行动
-      事件记录: '', // 必填：200-300字，事实记录
-      反思_违背理想自我的瞬间: '', // 必填：今天在哪个瞬间违背了理想中的自己
-      反思_对自己说实话: '', // 必填：用一句话对自己说实话
-      反思_下次可以尝试的小动作: '', // 必填：下一次类似场景可以尝试的小动作
-      明日一小步: '' // 必填：明日情感承诺
-    },
+    // 第四步：问题库（可选）
+    问题库: [], // 数组，每个元素是一个问题对象
     
-    // 第五步：每日三省（总反省）
+    // 第五步：习惯追踪（可选）
+    习惯追踪: [], // 数组，每个元素是一个习惯对象
+    
+    // 第六步：每日三省（优化）
     每日三省: {
-      动机偏差: '', // 必填：今天在动机上有没有为了逃避或迎合而做的选择
-      理想不一致: '', // 必填：今天有哪个瞬间和理想状态最不一致
-      理想的一天: '' // 必填：如果明天只允许围绕三大课题各做一件小事，会选什么
+      动机偏差: '', // 必填：今天有没有为了逃避/迎合而做的选择？
+      理想不一致: '', // 必填：今天有哪个瞬间和理想状态最不一致？
+      主线对齐: '' // 必填：如果明天只允许围绕三条主线各做一件小事，会选什么？
     }
+  }
+}
+
+// 获取默认决策对象
+export function getDefaultDecision() {
+  return {
+    决策ID: `decision_${Date.now()}`,
+    决策主题: '',
+    带来什么: '',
+    失去什么: '',
+    真实痛点: '',
+    替代方案: '',
+    决策结论: '',
+    下一步行动: '',
+    创建时间: new Date().toISOString(),
+    是否解决: false
+  }
+}
+
+// 获取默认问题对象
+export function getDefaultProblem() {
+  return {
+    问题ID: `problem_${Date.now()}`,
+    问题描述: '',
+    问题分类: '', // 技术问题/关系问题/决策问题/其他
+    优先级: '', // P0/P1/P2
+    是否解决: false,
+    创建时间: new Date().toISOString(),
+    最后更新时间: new Date().toISOString()
+  }
+}
+
+// 获取默认习惯对象
+export function getDefaultHabit() {
+  return {
+    习惯ID: `habit_${Date.now()}`,
+    习惯名称: '',
+    是否执行: false,
+    关联主线: '', // 主线ID
+    执行感受: '',
+    连续天数: 0 // 系统自动计算
   }
 }

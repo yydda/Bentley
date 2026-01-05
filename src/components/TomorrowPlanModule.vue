@@ -143,6 +143,8 @@ function initLocalData() {
 }
 
 const localData = ref(initLocalData())
+// 标记是否正在更新，避免循环更新
+const isUpdating = ref(false)
 
 // 添加MIT
 function addMIT() {
@@ -165,7 +167,9 @@ function removeMIT(index) {
 
 // 监听本地数据变化，更新父组件（使用防抖）
 const debouncedUpdateParent = debounce(() => {
-  emit('update:modelValue', { ...localData.value })
+  if (!isUpdating.value) {
+    emit('update:modelValue', { ...localData.value })
+  }
 }, 300)
 
 watch(localData, () => {
@@ -174,26 +178,67 @@ watch(localData, () => {
 
 // 当父组件的modelValue变化时，更新localData
 watch(() => props.modelValue, (newVal) => {
-  if (newVal) {
-    // 确保数据结构完整
-    if (newVal.MIT) {
-      localData.value.MIT = Array.isArray(newVal.MIT) 
-        ? [...newVal.MIT] 
-        : []
-    }
-    if (newVal.承诺 !== undefined) {
-      localData.value.承诺 = newVal.承诺
+  // 避免循环更新
+  if (isUpdating.value) return
+  
+  // 深度比较，避免不必要的更新
+  const currentStr = JSON.stringify(localData.value)
+  const newStr = JSON.stringify(newVal || { MIT: [], 承诺: '' })
+  
+  if (currentStr !== newStr) {
+    isUpdating.value = true
+    try {
+      if (newVal) {
+        // 确保数据结构完整
+        if (newVal.MIT) {
+          localData.value.MIT = Array.isArray(newVal.MIT) 
+            ? [...newVal.MIT] 
+            : []
+        } else {
+          localData.value.MIT = []
+        }
+        if (newVal.承诺 !== undefined) {
+          localData.value.承诺 = newVal.承诺
+        } else {
+          localData.value.承诺 = ''
+        }
+      } else {
+        localData.value = {
+          MIT: [],
+          承诺: ''
+        }
+      }
+    } finally {
+      // 使用nextTick确保更新完成后再重置标志
+      setTimeout(() => {
+        isUpdating.value = false
+      }, 100)
     }
   }
-}, { deep: true })
+}, { deep: true, immediate: true })
 
 // 初始化时确保数据结构完整
 onMounted(() => {
   if (!localData.value.MIT) {
     localData.value.MIT = []
   }
-  if (!localData.value.承诺) {
+  if (localData.value.承诺 === undefined || localData.value.承诺 === null) {
     localData.value.承诺 = ''
+  }
+  // 确保初始数据同步
+  if (props.modelValue) {
+    const currentStr = JSON.stringify(localData.value)
+    const propStr = JSON.stringify(props.modelValue)
+    if (currentStr !== propStr) {
+      if (props.modelValue.MIT) {
+        localData.value.MIT = Array.isArray(props.modelValue.MIT) 
+          ? [...props.modelValue.MIT] 
+          : []
+      }
+      if (props.modelValue.承诺 !== undefined) {
+        localData.value.承诺 = props.modelValue.承诺
+      }
+    }
   }
 })
 </script>

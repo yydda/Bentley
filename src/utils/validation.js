@@ -1,4 +1,4 @@
-// 数据完整性检查工具（新版本：三大课题模型）
+// 数据完整性检查工具（新版本：人生主线系统）
 
 // 检查今日概览模块完整性
 export function checkOverviewComplete(data) {
@@ -20,39 +20,33 @@ export function checkOverviewComplete(data) {
   }
 }
 
-// 检查生活模块完整性
-export function checkLifeComplete(data) {
-  if (!data) return { complete: false, missing: ['生活数据为空'] }
+// 检查今日主线推进模块完整性
+export function checkThreadProgressComplete(data) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return { complete: false, missing: ['请至少选择一条主线并填写推进记录'] }
+  }
   
   const missing = []
   
-  if (!data.主问题 || data.主问题.trim() === '') {
-    missing.push('缺少生活主问题')
-  }
-  
-  if (!data.今日行动 || data.今日行动.trim() === '') {
-    missing.push('缺少今日生活行动')
-  }
-  
-  if (!data.事件记录 || data.事件记录.trim() === '') {
-    missing.push('缺少生活事件记录')
-  }
-  
-  if (!data.反思_是否推进 || data.反思_是否推进.trim() === '') {
-    missing.push('缺少"是否推进了生活课题"的反思')
-  }
-  
-  if (!data.反思_今天最消耗的点 || data.反思_今天最消耗的点.trim() === '') {
-    missing.push('缺少"今天最消耗的点"的反思')
-  }
-  
-  if (!data.反思_明天如何调整 || data.反思_明天如何调整.trim() === '') {
-    missing.push('缺少"明天如何调整"的反思')
-  }
-  
-  if (!data.明日一小步 || data.明日一小步.trim() === '') {
-    missing.push('缺少明日生活一小步')
-  }
+  data.forEach((progress, index) => {
+    const threadLabel = `主线${index + 1}`
+    
+    if (!progress.主线ID) {
+      missing.push(`${threadLabel}：缺少主线ID`)
+    }
+    
+    if (!progress.今日关键行动 || progress.今日关键行动.trim() === '') {
+      missing.push(`${threadLabel}：缺少今日关键行动`)
+    }
+    
+    if (!progress.行动记录 || progress.行动记录.trim() === '') {
+      missing.push(`${threadLabel}：缺少行动记录`)
+    }
+    
+    if (progress.推进效果 === undefined || progress.推进效果 === null) {
+      missing.push(`${threadLabel}：缺少推进效果评分`)
+    }
+  })
   
   return {
     complete: missing.length === 0,
@@ -60,39 +54,35 @@ export function checkLifeComplete(data) {
   }
 }
 
-// 检查项目模块完整性
-export function checkWealthComplete(data) {
-  if (!data) return { complete: false, missing: ['项目数据为空'] }
+// 检查决策与内耗模块完整性（可选，但如果有决策，则检查必填字段）
+export function checkDecisionComplete(data) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return { complete: true, missing: [] } // 决策是可选的
+  }
   
   const missing = []
   
-  if (!data.今日关键推进 || data.今日关键推进.trim() === '') {
-    missing.push('缺少今日关键推进')
-  }
-  
-  if (!data.今日项目记录 || data.今日项目记录.trim() === '') {
-    missing.push('缺少今日项目工作清单')
-  }
-  
-  if (data.项目进度感 === undefined || data.项目进度感 === null) {
-    missing.push('缺少项目进度感')
-  }
-  
-  if (!data.最有效动作 || data.最有效动作.trim() === '') {
-    missing.push('缺少"最有效动作"的记录')
-  }
-  
-  if (!data.今日浪费 || data.今日浪费.trim() === '') {
-    missing.push('缺少"今日浪费"的记录')
-  }
-  
-  if (!data.卡点与疑问 || data.卡点与疑问.trim() === '') {
-    missing.push('缺少"卡点与疑问"的记录')
-  }
-  
-  if (!data.明日任务列表 || data.明日任务列表.trim() === '') {
-    missing.push('缺少明日项目任务列表')
-  }
+  data.forEach((decision, index) => {
+    if (!decision.决策主题 || decision.决策主题.trim() === '') {
+      missing.push(`决策${index + 1}：缺少决策主题`)
+    }
+    if (!decision.带来什么 || decision.带来什么.trim() === '') {
+      missing.push(`决策${index + 1}：缺少"带来什么"`)
+    }
+    if (!decision.失去什么 || decision.失去什么.trim() === '') {
+      missing.push(`决策${index + 1}：缺少"失去什么"`)
+    }
+    if (!decision.真实痛点 || decision.真实痛点.trim() === '') {
+      missing.push(`决策${index + 1}：缺少"真实痛点"`)
+    }
+    if (!decision.替代方案 || decision.替代方案.trim() === '') {
+      missing.push(`决策${index + 1}：缺少"替代方案"`)
+    }
+    // 如果已做出决策，则决策结论和下一步行动是必填的
+    if (decision.是否解决 && (!decision.决策结论 || decision.决策结论.trim() === '')) {
+      missing.push(`决策${index + 1}：已标记为已决策，但缺少决策结论`)
+    }
+  })
   
   return {
     complete: missing.length === 0,
@@ -100,39 +90,45 @@ export function checkWealthComplete(data) {
   }
 }
 
-// 检查情感模块完整性
-export function checkLoveComplete(data) {
-  if (!data) return { complete: false, missing: ['情感数据为空'] }
+// 检查问题库模块完整性（可选）
+export function checkProblemComplete(data) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return { complete: true, missing: [] } // 问题库是可选的
+  }
   
   const missing = []
   
-  if (!data.今日焦点问题 || data.今日焦点问题.trim() === '') {
-    missing.push('缺少今日情感焦点问题')
+  data.forEach((problem, index) => {
+    if (!problem.问题描述 || problem.问题描述.trim() === '') {
+      missing.push(`问题${index + 1}：缺少问题描述`)
+    }
+    if (!problem.问题分类 || problem.问题分类.trim() === '') {
+      missing.push(`问题${index + 1}：缺少问题分类`)
+    }
+    if (!problem.优先级 || problem.优先级.trim() === '') {
+      missing.push(`问题${index + 1}：缺少优先级`)
+    }
+  })
+  
+  return {
+    complete: missing.length === 0,
+    missing
+  }
+}
+
+// 检查习惯追踪模块完整性（可选）
+export function checkHabitComplete(data) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return { complete: true, missing: [] } // 习惯追踪是可选的
   }
   
-  if (!data.今日行动 || data.今日行动.trim() === '') {
-    missing.push('缺少今日情感行动')
-  }
+  const missing = []
   
-  if (!data.事件记录 || data.事件记录.trim() === '') {
-    missing.push('缺少情感事件记录')
-  }
-  
-  if (!data.反思_违背理想自我的瞬间 || data.反思_违背理想自我的瞬间.trim() === '') {
-    missing.push('缺少"违背理想自我的瞬间"的反思')
-  }
-  
-  if (!data.反思_对自己说实话 || data.反思_对自己说实话.trim() === '') {
-    missing.push('缺少"对自己说实话"的反思')
-  }
-  
-  if (!data.反思_下次可以尝试的小动作 || data.反思_下次可以尝试的小动作.trim() === '') {
-    missing.push('缺少"下次可以尝试的小动作"的反思')
-  }
-  
-  if (!data.明日一小步 || data.明日一小步.trim() === '') {
-    missing.push('缺少明日情感一小步')
-  }
+  data.forEach((habit, index) => {
+    if (!habit.习惯名称 || habit.习惯名称.trim() === '') {
+      missing.push(`习惯${index + 1}：缺少习惯名称`)
+    }
+  })
   
   return {
     complete: missing.length === 0,
@@ -154,8 +150,8 @@ export function checkReflectionsComplete(data) {
     missing.push('缺少"理想不一致"的反思')
   }
   
-  if (!data.理想的一天 || data.理想的一天.trim() === '') {
-    missing.push('缺少"理想的一天"的反思')
+  if (!data.主线对齐 || data.主线对齐.trim() === '') {
+    missing.push('缺少"主线对齐"的反思')
   }
   
   return {
@@ -168,20 +164,29 @@ export function checkReflectionsComplete(data) {
 export function checkOverallComplete(formData) {
   const results = {
     今日概览: checkOverviewComplete(formData.今日概览),
-    生活: checkLifeComplete(formData.生活),
-    项目: checkWealthComplete(formData.项目),
-    情感: checkLoveComplete(formData.情感),
+    今日主线推进: checkThreadProgressComplete(formData.今日主线推进),
+    决策与内耗: checkDecisionComplete(formData.决策与内耗),
+    问题库: checkProblemComplete(formData.问题库),
+    习惯追踪: checkHabitComplete(formData.习惯追踪),
     每日三省: checkReflectionsComplete(formData.每日三省)
   }
   
   const allComplete = Object.values(results).every(r => r.complete)
   const totalMissing = Object.values(results).reduce((sum, r) => sum + r.missing.length, 0)
   
+  // 估算完成度（核心必填项约10个）
+  const coreRequired = [
+    results.今日概览,
+    results.今日主线推进,
+    results.每日三省
+  ]
+  const coreMissing = coreRequired.reduce((sum, r) => sum + r.missing.length, 0)
+  const completionRate = Math.round((1 - coreMissing / 10) * 100)
+  
   return {
     allComplete,
     totalMissing,
     results,
-    completionRate: Math.round((1 - totalMissing / 20) * 100) // 粗略估算完成度（约20个必填项）
+    completionRate
   }
 }
-

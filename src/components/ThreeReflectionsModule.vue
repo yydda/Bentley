@@ -52,20 +52,20 @@
       />
     </div>
 
-    <!-- 第三问：理想的一天 -->
+    <!-- 第三问：主线对齐 -->
     <div class="reflection-card">
       <div class="card-header">
         <span class="card-icon">🌟</span>
-        <span class="card-title">第三问：理想的一天</span>
+        <span class="card-title">第三问：主线对齐</span>
       </div>
       <div class="card-question">
-        "如果明天只允许我围绕三大课题各做'一件小事'，会选什么？"
+        "如果明天只允许围绕三条主线各做'一件小事'，会选什么？"
       </div>
       <div class="card-hint">
-        生活：___ / 财富：___ / 情感：___
+        结合你的人生主线，为每条主线选择一件小事
       </div>
       <el-input
-        v-model="localData.理想的一天"
+        v-model="localData.主线对齐"
         type="textarea"
         :rows="5"
         placeholder="请用200字以内回答..."
@@ -100,7 +100,7 @@ const props = defineProps({
     default: () => ({
       动机偏差: '',
       理想不一致: '',
-      理想的一天: ''
+      主线对齐: ''
     })
   }
 })
@@ -112,7 +112,7 @@ function initLocalData() {
   const defaultData = {
     动机偏差: '',
     理想不一致: '',
-    理想的一天: ''
+    主线对齐: ''
   }
   
   // 深度合并默认数据和传入的数据
@@ -124,8 +124,11 @@ function initLocalData() {
     if (props.modelValue.理想不一致 !== undefined) {
       merged.理想不一致 = props.modelValue.理想不一致
     }
-    if (props.modelValue.理想的一天 !== undefined) {
-      merged.理想的一天 = props.modelValue.理想的一天
+    // 兼容旧字段"理想的一天"
+    if (props.modelValue.主线对齐 !== undefined) {
+      merged.主线对齐 = props.modelValue.主线对齐
+    } else if (props.modelValue.理想的一天 !== undefined) {
+      merged.主线对齐 = props.modelValue.理想的一天
     }
   }
   
@@ -153,8 +156,11 @@ watch(() => props.modelValue, (newVal) => {
     if (newVal.理想不一致 !== undefined) {
       localData.value.理想不一致 = newVal.理想不一致
     }
-    if (newVal.理想的一天 !== undefined) {
-      localData.value.理想的一天 = newVal.理想的一天
+    // 兼容旧字段"理想的一天"
+    if (newVal.主线对齐 !== undefined) {
+      localData.value.主线对齐 = newVal.主线对齐
+    } else if (newVal.理想的一天 !== undefined) {
+      localData.value.主线对齐 = newVal.理想的一天
     }
   }
 }, { deep: true })
@@ -164,7 +170,7 @@ import { ElMessage } from 'element-plus'
 // 完成日记
 function handleComplete() {
   // 检查必填字段
-  if (!localData.value.动机偏差 || !localData.value.理想不一致 || !localData.value.理想的一天) {
+  if (!localData.value.动机偏差 || !localData.value.理想不一致 || !localData.value.主线对齐) {
     ElMessage.warning('请完成所有三个反思问题')
     return
   }
@@ -179,8 +185,8 @@ onMounted(() => {
   if (!localData.value.理想不一致) {
     localData.value.理想不一致 = ''
   }
-  if (!localData.value.理想的一天) {
-    localData.value.理想的一天 = ''
+  if (!localData.value.主线对齐) {
+    localData.value.主线对齐 = ''
   }
 })
 </script>

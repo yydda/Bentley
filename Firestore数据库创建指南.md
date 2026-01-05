@@ -108,6 +108,11 @@ service cloud.firestore {
     match /diaries/{userId}/dates/{date} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+    
+    // 人生主线数据：只有登录用户才能读写自己的数据
+    match /lifeThreads/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
   }
 }
 ```

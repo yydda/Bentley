@@ -13,6 +13,7 @@ import {
 import { db } from '../config/firebase'
 
 const COLLECTION_NAME = 'diaries'
+const LIFE_THREADS_COLLECTION = 'lifeThreads'
 
 // 获取用户日记数据路径
 function getUserDiaryPath(userId, date) {
@@ -36,6 +37,32 @@ export async function getDiaryDataFromFirebase(userId, date) {
   }
 }
 
+// 递归清理对象中的 undefined 值
+function removeUndefined(obj) {
+  if (obj === null || obj === undefined) {
+    return null
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => removeUndefined(item)).filter(item => item !== undefined)
+  }
+  
+  if (typeof obj === 'object') {
+    const cleaned = {}
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        const cleanedValue = removeUndefined(value)
+        if (cleanedValue !== undefined) {
+          cleaned[key] = cleanedValue
+        }
+      }
+    }
+    return cleaned
+  }
+  
+  return obj
+}
+
 // 保存日记数据到Firebase
 export async function saveDiaryDataToFirebase(userId, date, data) {
   try {
@@ -50,8 +77,12 @@ export async function saveDiaryDataToFirebase(userId, date, data) {
     }
     
     const docRef = doc(db, getUserDiaryPath(userId, date))
+    
+    // 清理数据中的 undefined 值（Firebase 不支持 undefined）
+    const cleanedData = removeUndefined(data)
+    
     const dataToSave = {
-      ...data,
+      ...cleanedData,
       date,
       updatedAt: new Date().toISOString()
     }
@@ -79,15 +110,26 @@ export async function saveDiaryDataToFirebase(userId, date, data) {
 // 获取用户所有日期列表
 export async function getAllDatesFromFirebase(userId) {
   try {
+    if (!userId) {
+      console.warn('用户ID为空，无法获取日期列表')
+      return []
+    }
+    
     const datesRef = collection(db, `${COLLECTION_NAME}/${userId}/dates`)
     const querySnapshot = await getDocs(datesRef)
     
     const dates = []
     querySnapshot.forEach((doc) => {
-      dates.push(doc.id)
+      if (doc.id) {
+        dates.push(doc.id)
+      }
     })
     
-    return dates.sort().reverse()
+    // 按日期倒序排列（最新的在前）
+    const sortedDates = dates.sort().reverse()
+    console.log(`获取到 ${sortedDates.length} 个历史日期`)
+    
+    return sortedDates
   } catch (error) {
     console.error('获取日期列表失败:', error)
     throw error
@@ -125,6 +167,69 @@ export function subscribeAllDates(userId, callback) {
     callback([], error)
   })
 }
+
+// ========== 人生主线相关函数 ==========
+
+// 获取用户人生主线
+export async function getLifeThreadsFromFirebase(userId) {
+  try {
+    const docRef = doc(db, `${LIFE_THREADS_COLLECTION}/${userId}`)
+    const docSnap = await getDoc(docRef)
+    
+    if (docSnap.exists()) {
+      return docSnap.data().threads || []
+    } else {
+      return []
+    }
+  } catch (error) {
+    console.error('获取人生主线失败:', error)
+    throw error
+  }
+}
+
+// 保存人生主线
+export async function saveLifeThreadsToFirebase(userId, threads) {
+  try {
+    if (!userId) {
+      throw new Error('用户ID不能为空')
+    }
+    if (!Array.isArray(threads)) {
+      throw new Error('主线数据必须是数组')
+    }
+    
+    const docRef = doc(db, `${LIFE_THREADS_COLLECTION}/${userId}`)
+    const dataToSave = {
+      userId,
+      threads,
+      updatedAt: new Date().toISOString()
+    }
+    
+    await setDoc(docRef, dataToSave, { merge: true })
+    console.log('人生主线保存成功')
+    return { success: true }
+  } catch (error) {
+    console.error('保存人生主线失败:', error)
+    throw error
+  }
+}
+
+// 实时监听人生主线变化
+export function subscribeLifeThreads(userId, callback) {
+  const docRef = doc(db, `${LIFE_THREADS_COLLECTION}/${userId}`)
+  
+  return onSnapshot(docRef, (docSnap) => {
+    if (docSnap.exists()) {
+      callback(docSnap.data().threads || [])
+    } else {
+      callback([])
+    }
+  }, (error) => {
+    console.error('监听人生主线失败:', error)
+    callback([], error)
+  })
+}
+
+// ========== 迁移函数 ==========
 
 // 迁移localStorage数据到Firebase（如果存在旧数据）
 export async function migrateLocalStorageToFirebase(userId) {

@@ -52,9 +52,11 @@
           @click="saveManually" 
           size="small"
           title="保存 (Ctrl+S / Cmd+S)"
+          :loading="isSaving"
+          :disabled="isSaving"
           v-if="user"
         >
-          <span class="hidden sm:inline">保存</span>
+          <span class="hidden sm:inline">{{ isSaving ? '保存中...' : '保存' }}</span>
         </el-button>
         <el-button 
           type="success"  
@@ -66,7 +68,7 @@
           <span class="hidden sm:inline">预览</span>
         </el-button>
         <el-button 
-          text 
+          type="text"
           @click="showLoginDialog = true" 
           :icon="User" 
           size="small"
@@ -92,28 +94,42 @@
       title="历史记录"
       width="90%"
       :max-width="600"
+      @opened="handleHistoryDialogOpened"
     >
-      <div class="space-y-2 max-h-96 overflow-y-auto">
-        <div
-          v-for="date in historyDates"
-          :key="date"
-          class="flex items-center justify-between p-3 border rounded hover:bg-gray-50 cursor-pointer"
-          @click="selectHistoryDate(date)"
-        >
-          <div>
-            <div class="font-medium">{{ formatDate(date) }}</div>
-            <div class="text-sm text-gray-500">{{ dateSummaryMap[date] || '加载中...' }}</div>
-          </div>
-          <el-button
-            text
-            type="primary"
-            @click.stop="selectHistoryDate(date)"
+      <div v-if="!user" class="text-center text-gray-500 py-8">
+        <p class="mb-4">请先登录以查看历史记录</p>
+        <el-button type="primary" @click="showLoginDialog = true">立即登录</el-button>
+      </div>
+      <div 
+        v-else 
+        v-loading="isLoadingHistory"
+        element-loading-text="加载历史记录..."
+        element-loading-background="rgba(255, 255, 255, 0.8)"
+        class="space-y-2 max-h-96 overflow-y-auto"
+      >
+        <transition-group name="list" tag="div">
+          <div
+            v-for="date in historyDates"
+            :key="date"
+            class="flex items-center justify-between p-3 border rounded hover:bg-gray-50 cursor-pointer transition-all duration-200"
+            @click="selectHistoryDate(date)"
           >
-            查看
-          </el-button>
-        </div>
-        <div v-if="historyDates.length === 0" class="text-center text-gray-500 py-8">
-          暂无历史记录
+            <div class="flex-1">
+              <div class="font-medium text-gray-800">{{ formatDate(date) }}</div>
+              <div class="text-sm text-gray-500 mt-1">{{ dateSummaryMap[date] || '加载中...' }}</div>
+            </div>
+            <el-button
+              text
+              type="primary"
+              @click.stop="selectHistoryDate(date)"
+            >
+              查看
+            </el-button>
+          </div>
+        </transition-group>
+        <div v-if="historyDates.length === 0 && !isLoadingHistory" class="text-center text-gray-500 py-8">
+          <p class="mb-2">暂无历史记录</p>
+          <p class="text-xs text-gray-400">填写日记后，记录会自动出现在这里</p>
         </div>
       </div>
     </el-dialog>
@@ -126,15 +142,16 @@
           finish-status="success"
         >
           <el-step title="概览" />
-          <el-step title="生活" />
-          <el-step title="项目" />
-          <el-step title="情感" />
+          <el-step title="主线推进" />
+          <el-step title="决策" />
+          <el-step title="问题库" />
+          <el-step title="习惯" />
           <el-step title="三省" />
         </el-steps>
         <!-- 模块快速跳转按钮 -->
         <div class="mt-3 md:mt-4 flex justify-center gap-1 md:gap-2 flex-wrap">
           <el-button
-            v-for="(title, index) in ['概览', '生活', '项目', '情感', '三省']"
+            v-for="(title, index) in ['概览', '主线推进', '决策', '问题库', '习惯', '三省']"
             :key="index"
             :type="activeStep === index ? 'primary' : 'default'"
             size="small"
@@ -145,18 +162,29 @@
             {{ title }}
           </el-button>
         </div>
+        <!-- 管理主线按钮 -->
+        <div class="mt-2 text-center">
+          <el-button
+            type="text"
+            size="small"
+            @click="showThreadsSetupDialog = true"
+            class="text-xs text-gray-500"
+          >
+            管理人生主线
+          </el-button>
+        </div>
       </div>
 
       <!-- 进度提示 -->
       <div class="mb-6 space-y-2">
         <el-progress
-          :percentage="Math.round((activeStep + 1) / 5 * 100)"
-          :status="activeStep === 4 ? 'success' : undefined"
+          :percentage="Math.round((activeStep + 1) / 6 * 100)"
+          :status="activeStep === 5 ? 'success' : undefined"
           :stroke-width="8"
         />
         <div class="flex flex-col md:flex-row items-start md:items-center justify-between text-xs md:text-sm gap-1 md:gap-0">
           <span class="text-gray-600">
-            当前进度: {{ Math.round((activeStep + 1) / 5 * 100) }}% - {{ ['概览', '生活', '项目', '情感', '三省'][activeStep] }}
+            当前进度: {{ Math.round((activeStep + 1) / 6 * 100) }}% - {{ ['概览', '主线推进', '决策', '问题库', '习惯', '三省'][activeStep] }}
           </span>
           <span 
             v-if="completionInfo.totalMissing > 0"
@@ -174,46 +202,71 @@
       </div>
 
       <!-- 模块内容 -->
-      <el-card class="mb-6">
+      <el-card 
+        class="mb-6 content-card"
+        v-loading="isLoadingData"
+        element-loading-text="正在加载数据..."
+        element-loading-background="rgba(255, 255, 255, 0.8)"
+        element-loading-spinner="el-icon-loading"
+      >
         <template #header>
           <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-1 md:gap-0">
             <span class="text-base md:text-lg font-semibold">
-              {{ ['第一步：今日概览', '第二步：生活（Life）', '第三步：项目（Project）', '第四步：情感（Love）', '第五步：每日三省'][activeStep] }}
+              {{ ['第一步：今日概览', '第二步：今日主线推进', '第三步：决策与内耗', '第四步：问题库', '第五步：习惯追踪', '第六步：每日三省'][activeStep] }}
             </span>
             <div class="text-xs md:text-sm text-gray-500">
               {{ formatDate(currentDate) }}
             </div>
           </div>
         </template>
-        <OverviewModule
-          v-if="activeStep === 0"
-          v-model="formData.今日概览"
-          @next="handleNext"
-        />
-        <LifeModule
-          v-if="activeStep === 1"
-          v-model="formData.生活"
-          @next="handleNext"
-          @prev="handlePrev"
-        />
-        <ProjectModule
-          v-if="activeStep === 2"
-          v-model="formData.项目"
-          @next="handleNext"
-          @prev="handlePrev"
-        />
-        <LoveModule
-          v-if="activeStep === 3"
-          v-model="formData.情感"
-          @next="handleNext"
-          @prev="handlePrev"
-        />
-        <ThreeReflectionsModule
-          v-if="activeStep === 4"
-          v-model="formData.每日三省"
-          @prev="handlePrev"
-          @complete="handleComplete"
-        />
+        <transition name="fade" mode="out-in">
+          <div :key="`${currentDate}-${activeStep}`">
+            <OverviewModule
+              v-if="activeStep === 0"
+              v-model="formData.今日概览"
+              @next="handleNext"
+            />
+            <DailyThreadProgressModule
+              v-if="activeStep === 1"
+              v-model="formData.今日主线推进"
+              :life-threads="lifeThreads"
+              @update:modelValue="formData.今日主线推进 = $event"
+              @setup-threads="showThreadsSetupDialog = true"
+              @next="handleNext"
+              @prev="handlePrev"
+            />
+            <DecisionModule
+              v-if="activeStep === 2"
+              v-model="formData.决策与内耗"
+              @update:modelValue="formData.决策与内耗 = $event"
+              @next="handleNext"
+              @prev="handlePrev"
+            />
+            <ProblemLibraryModule
+              v-if="activeStep === 3"
+              v-model="formData.问题库"
+              :all-problems="[]"
+              @update:modelValue="formData.问题库 = $event"
+              @next="handleNext"
+              @prev="handlePrev"
+            />
+            <HabitTrackingModule
+              v-if="activeStep === 4"
+              v-model="formData.习惯追踪"
+              :life-threads="lifeThreads"
+              :all-habits-history="{}"
+              @update:modelValue="formData.习惯追踪 = $event"
+              @next="handleNext"
+              @prev="handlePrev"
+            />
+            <ThreeReflectionsModule
+              v-if="activeStep === 5"
+              v-model="formData.每日三省"
+              @prev="handlePrev"
+              @complete="handleComplete"
+            />
+          </div>
+        </transition>
       </el-card>
 
       <!-- 底部导航按钮 -->
@@ -231,7 +284,7 @@
           </el-button>
           <div v-else class="flex-1 md:flex-initial"></div>
           <el-button
-            v-if="activeStep < 4"
+            v-if="activeStep < 5"
             type="primary"
             @click="handleNext"
             :icon="ArrowRight"
@@ -255,192 +308,481 @@
       <Login @login="handleUserLogin" @logout="handleUserLogout" />
     </el-dialog>
 
+    <!-- 主线设置对话框 -->
+    <el-dialog
+      v-model="showThreadsSetupDialog"
+      title="管理人生主线"
+      width="90%"
+      :max-width="800"
+      :close-on-click-modal="false"
+    >
+      <LifeThreadsSetup @saved="handleThreadsSaved" />
+    </el-dialog>
+
     <!-- 预览总览弹窗 -->
     <el-dialog
       v-model="showOverviewDialog"
-      title="日记预览"
+      title=""
       width="95%"
-      :max-width="900"
+      :max-width="1000"
       :close-on-click-modal="true"
       class="overview-dialog"
       @opened="handleOverviewOpened"
+      :show-close="true"
+      :close-on-press-escape="true"
     >
-      <div class="overview-content">
-        <!-- 顶部装饰 -->
-        <div class="celebration-header">
-          <div class="celebration-animation">
-            <span class="celebration-emoji">📝</span>
-            <span class="celebration-emoji">✨</span>
-            <span class="celebration-emoji">📊</span>
+      <template #header>
+        <div class="dialog-header-custom">
+          <div class="flex items-center justify-between w-full">
+            <div class="flex items-center gap-3 flex-1">
+              <div class="header-icon-wrapper">
+                <span class="text-2xl">📖</span>
+              </div>
+              <div class="flex-1">
+                <div class="text-lg font-bold text-gray-800">日记预览</div>
+                <div class="text-sm text-gray-500">{{ formatDate(currentDate) }}</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <!-- 快速导航菜单 -->
+              <el-dropdown trigger="click" placement="bottom-end" @command="handleQuickNav">
+                <el-button text size="small" :icon="Menu">
+                  <span class="hidden sm:inline">快速导航</span>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="summary" :icon="Document">核心摘要</el-dropdown-item>
+                    <el-dropdown-item command="achievements" :icon="Star" v-if="overviewAchievements.length > 0">今日成就</el-dropdown-item>
+                    <el-dropdown-item command="stats" :icon="List">数据统计</el-dropdown-item>
+                    <el-dropdown-item command="threads" :icon="Location" v-if="formData.今日主线推进?.length > 0">主线推进</el-dropdown-item>
+                    <el-dropdown-item command="reflections" :icon="CircleCheck" v-if="formData.每日三省?.动机偏差 || formData.每日三省?.理想不一致 || formData.每日三省?.主线对齐">今日三省</el-dropdown-item>
+                    <el-dropdown-item command="decisions" :icon="Check" v-if="formData.决策与内耗?.length > 0">决策与内耗</el-dropdown-item>
+                    <el-dropdown-item command="habits" :icon="Star" v-if="formData.习惯追踪?.length > 0">习惯追踪</el-dropdown-item>
+                    <el-dropdown-item command="actions" :icon="Setting">快速操作</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+              <el-tag 
+                :type="overviewCompletionRate >= 80 ? 'success' : overviewCompletionRate >= 50 ? 'warning' : 'info'" 
+                size="small"
+                class="completion-tag"
+              >
+                <span class="tag-icon">{{ overviewCompletionRate >= 80 ? '✓' : overviewCompletionRate >= 50 ? '○' : '◯' }}</span>
+                完成度 {{ overviewCompletionRate }}%
+              </el-tag>
+            </div>
           </div>
-          <h1 class="celebration-title">日记预览</h1>
-          <p class="celebration-subtitle">{{ formatDate(currentDate) }} 的记录</p>
+        </div>
+      </template>
+      
+      <div class="overview-content" v-loading="isCalculatingOverview" element-loading-text="正在生成预览..." ref="overviewContentRef">
+        <!-- 顶部核心摘要卡片 -->
+        <div class="summary-hero-card mb-4" id="overview-summary">
+          <div class="hero-content">
+            <div class="hero-left">
+              <div class="hero-title">{{ formData.今日概览?.一句话标题 || '今天还没有标题' }}</div>
+              <div class="hero-subtitle">{{ formatDate(currentDate) }} 的记录</div>
+            </div>
+            <div class="hero-right">
+              <div class="hero-stats">
+                <!-- 能量值可视化 -->
+                <div class="hero-stat-item stat-item-enhanced">
+                  <div class="stat-visual-wrapper">
+                    <div class="stat-visual-bar">
+                      <div 
+                        class="stat-visual-fill energy-fill" 
+                        :style="{ width: `${((overviewStats.能量值 || 0) / 5) * 100}%` }"
+                      ></div>
+                    </div>
+                  </div>
+                  <div class="stat-value-large">{{ overviewStats.能量值 || 0 }}</div>
+                  <div class="stat-label-small">能量值</div>
+                </div>
+                <div class="hero-stat-divider"></div>
+                <!-- 压力值可视化 -->
+                <div class="hero-stat-item stat-item-enhanced">
+                  <div class="stat-visual-wrapper">
+                    <div class="stat-visual-bar">
+                      <div 
+                        class="stat-visual-fill stress-fill" 
+                        :style="{ width: `${((overviewStats.压力值 || 0) / 5) * 100}%` }"
+                      ></div>
+                    </div>
+                  </div>
+                  <div class="stat-value-large">{{ overviewStats.压力值 || 0 }}</div>
+                  <div class="stat-label-small">压力值</div>
+                </div>
+                <div class="hero-stat-divider"></div>
+                <div class="hero-stat-item stat-item-enhanced">
+                  <div class="stat-value-large streak-value">{{ typeof overviewStreak === 'number' ? overviewStreak : 0 }}</div>
+                  <div class="stat-label-small">连续天数</div>
+                  <div v-if="overviewStreak > 0" class="streak-badge-mini">🔥</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- 完成度进度条 -->
+          <div class="hero-progress">
+            <div class="progress-label">
+              <span>今日完成度</span>
+              <span class="progress-percentage">{{ overviewCompletionRate }}%</span>
+            </div>
+            <el-progress 
+              :percentage="overviewCompletionRate" 
+              :status="overviewCompletionRate >= 80 ? 'success' : overviewCompletionRate >= 50 ? 'warning' : undefined"
+              :stroke-width="8"
+              :show-text="false"
+            />
+          </div>
         </div>
 
-        <!-- 鼓励文案 -->
-        <el-card class="encouragement-card mb-4" shadow="hover">
-          <div class="text-center py-3">
-            <div class="text-3xl mb-2">{{ mainEncouragement.emoji }}</div>
-            <div class="text-base font-semibold text-white">{{ mainEncouragement.message }}</div>
-          </div>
-        </el-card>
+        <!-- 鼓励文案和成就（并排显示） -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <!-- 鼓励文案 -->
+          <el-card class="encouragement-card" shadow="hover">
+            <div class="text-center py-4">
+              <div class="text-4xl mb-3 animate-bounce">{{ mainEncouragement.emoji }}</div>
+              <div class="text-base font-semibold text-white leading-relaxed">{{ mainEncouragement.message }}</div>
+            </div>
+          </el-card>
+          
+          <!-- 连续天数卡片 -->
+          <el-card v-if="overviewStreak > 0" class="streak-card-preview" shadow="hover">
+            <div class="flex items-center justify-between h-full">
+              <div>
+                <div class="text-sm text-gray-600 mb-2">连续记录</div>
+                <div class="text-4xl font-bold text-orange-500">{{ typeof overviewStreak === 'number' ? overviewStreak : 0 }} 天</div>
+                <div class="text-xs text-gray-500 mt-2">
+                  <span v-if="overviewStreak >= 30">坚持一个月了，太厉害了！🔥</span>
+                  <span v-else-if="overviewStreak >= 7">坚持一周了，继续保持！</span>
+                  <span v-else>继续坚持，形成习惯！</span>
+                </div>
+              </div>
+              <div class="text-6xl">🔥</div>
+            </div>
+          </el-card>
+        </div>
 
-        <!-- 成就展示 -->
-        <el-card v-if="overviewAchievements.length > 0" class="mb-4" shadow="hover">
+        <!-- 成就展示（可折叠） -->
+        <el-card v-if="overviewAchievements.length > 0" class="mb-4" shadow="hover" id="overview-achievements">
           <template #header>
-            <div class="flex items-center gap-2">
-              <span class="text-2xl">🏆</span>
-              <span class="text-lg font-semibold">今日成就</span>
-              <el-tag type="success" size="small">{{ overviewAchievements.length }} 项</el-tag>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">🏆</span>
+                <span class="text-lg font-semibold">今日成就</span>
+                <el-tag type="success" size="small">{{ overviewAchievements.length }} 项</el-tag>
+              </div>
+              <el-button 
+                text 
+                size="small" 
+                @click="overviewAchievementsExpanded = !overviewAchievementsExpanded"
+              >
+                {{ overviewAchievementsExpanded ? '收起' : '展开' }}
+              </el-button>
             </div>
           </template>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <el-collapse-transition>
+            <div v-show="overviewAchievementsExpanded">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div
+                  v-for="(achievement, index) in overviewAchievements"
+                  :key="index"
+                  class="achievement-item"
+                >
+                  <div class="achievement-icon">{{ achievement.icon }}</div>
+                  <div class="achievement-content">
+                    <div class="achievement-title">{{ achievement.title }}</div>
+                    <div class="achievement-desc">{{ achievement.description }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </el-collapse-transition>
+        </el-card>
+
+        <!-- 数据统计（优化显示） -->
+        <el-card class="mb-4" shadow="hover" id="overview-stats">
+          <template #header>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">📊</span>
+                <span class="text-lg font-semibold">今日数据统计</span>
+              </div>
+              <el-button 
+                text 
+                size="small" 
+                @click="overviewStatsExpanded = !overviewStatsExpanded"
+              >
+                {{ overviewStatsExpanded ? '收起' : '展开' }}
+              </el-button>
+            </div>
+          </template>
+          <el-collapse-transition>
+            <div v-show="overviewStatsExpanded">
+              <div class="stats-grid">
+                <div class="stat-item">
+                  <div class="stat-icon">🎯</div>
+                  <div class="stat-content">
+                    <div class="stat-label">主线推进</div>
+                    <div class="stat-value">{{ formData.今日主线推进?.length || 0 }}<span class="stat-unit">条</span></div>
+                  </div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-icon">💡</div>
+                  <div class="stat-content">
+                    <div class="stat-label">决策完成</div>
+                    <div class="stat-value">{{ overviewStats.已决策数 || 0 }}/{{ overviewStats.决策数 || 0 }}</div>
+                  </div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-icon">🔥</div>
+                  <div class="stat-content">
+                    <div class="stat-label">习惯执行</div>
+                    <div class="stat-value">{{ overviewStats.已执行习惯数 || 0 }}/{{ overviewStats.习惯数 || 0 }}</div>
+                  </div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-icon">❓</div>
+                  <div class="stat-content">
+                    <div class="stat-label">问题记录</div>
+                    <div class="stat-value">{{ overviewStats.问题数 || 0 }}<span class="stat-unit">个</span></div>
+                  </div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-icon">⚡</div>
+                  <div class="stat-content">
+                    <div class="stat-label">能量值</div>
+                    <div class="stat-value">{{ overviewStats.能量值 || 0 }}/5</div>
+                  </div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-icon">😌</div>
+                  <div class="stat-content">
+                    <div class="stat-label">压力值</div>
+                    <div class="stat-value">{{ overviewStats.压力值 || 0 }}/5</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </el-collapse-transition>
+        </el-card>
+
+        <!-- 今日主线推进总结（核心内容，优先展示） -->
+        <el-card v-if="formData.今日主线推进?.length > 0" class="mb-4 thread-progress-card" shadow="hover" id="overview-threads">
+          <template #header>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">🎯</span>
+                <span class="text-lg font-semibold">今日主线推进</span>
+                <el-tag type="primary" size="small">{{ formData.今日主线推进.length }} 条主线</el-tag>
+              </div>
+            </div>
+          </template>
+          <div class="space-y-4">
             <div
-              v-for="(achievement, index) in overviewAchievements"
-              :key="index"
-              class="achievement-item"
+              v-for="(progress, index) in formData.今日主线推进"
+              :key="progress.主线ID"
+              class="thread-progress-summary"
             >
-              <div class="achievement-icon">{{ achievement.icon }}</div>
-              <div class="achievement-content">
-                <div class="achievement-title">{{ achievement.title }}</div>
-                <div class="achievement-desc">{{ achievement.description }}</div>
+              <div class="thread-progress-header">
+                <div class="flex items-center gap-3">
+                  <div class="thread-progress-badge">{{ index + 1 }}</div>
+                  <div>
+                    <div class="thread-progress-name">{{ getThreadNameById(progress.主线ID) }}</div>
+                    <div class="thread-progress-effect">
+                      <el-rate
+                        :model-value="progress.推进效果 || 0"
+                        :max="5"
+                        disabled
+                        show-score
+                        text-color="#ff9900"
+                        score-template="{value} 分"
+                        size="small"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="thread-progress-content">
+                <div v-if="progress.今日关键行动" class="thread-action">
+                  <div class="action-label">🎯 关键行动</div>
+                  <div class="action-text">{{ progress.今日关键行动 }}</div>
+                </div>
+                <div v-if="progress.行动记录" class="thread-record">
+                  <div class="record-label">📝 行动记录</div>
+                  <div class="record-text">{{ progress.行动记录 }}</div>
+                </div>
               </div>
             </div>
           </div>
         </el-card>
 
-        <!-- 数据统计 -->
-        <el-card class="mb-4" shadow="hover">
+        <!-- 每日三省（核心，可折叠） -->
+        <el-card v-if="formData.每日三省?.动机偏差 || formData.每日三省?.理想不一致 || formData.每日三省?.主线对齐" class="mb-4 reflections-card" shadow="hover" id="overview-reflections">
           <template #header>
-            <div class="flex items-center gap-2">
-              <span class="text-2xl">📊</span>
-              <span class="text-lg font-semibold">今日数据</span>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">💪</span>
+                <span class="text-lg font-semibold">今日三省（核心反思）</span>
+              </div>
+              <el-button 
+                text 
+                size="small" 
+                @click="overviewReflectionsExpanded = !overviewReflectionsExpanded"
+              >
+                {{ overviewReflectionsExpanded ? '收起' : '展开' }}
+              </el-button>
             </div>
           </template>
-          <div class="stats-grid">
-            <div class="stat-item">
-              <div class="stat-label">时间总和</div>
-              <div class="stat-value">{{ overviewStats.时间总和 }}<span class="stat-unit">小时</span></div>
+          <el-collapse-transition>
+            <div v-show="overviewReflectionsExpanded">
+              <div class="space-y-4">
+                <div v-if="formData.每日三省?.动机偏差" class="reflection-item">
+                  <div class="reflection-question">
+                    <span class="reflection-icon">🤔</span>
+                    <span>动机偏差</span>
+                  </div>
+                  <div class="reflection-answer">{{ formData.每日三省.动机偏差 }}</div>
+                </div>
+                <div v-if="formData.每日三省?.理想不一致" class="reflection-item">
+                  <div class="reflection-question">
+                    <span class="reflection-icon">🎯</span>
+                    <span>理想不一致</span>
+                  </div>
+                  <div class="reflection-answer">{{ formData.每日三省.理想不一致 }}</div>
+                </div>
+                <div v-if="formData.每日三省?.主线对齐" class="reflection-item">
+                  <div class="reflection-question">
+                    <span class="reflection-icon">🌟</span>
+                    <span>主线对齐</span>
+                  </div>
+                  <div class="reflection-answer">{{ formData.每日三省.主线对齐 }}</div>
+                </div>
+              </div>
             </div>
-            <div class="stat-item">
-              <div class="stat-label">满意度</div>
-              <div class="stat-value">{{ overviewStats.满意度 }}</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">习惯数</div>
-              <div class="stat-value">{{ overviewStats.习惯数 }}<span class="stat-unit">个</span></div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">项目进度</div>
-              <div class="stat-value">{{ overviewStats.项目进度 }}<span class="stat-unit">%</span></div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">工作小时</div>
-              <div class="stat-value">{{ overviewStats.工作小时 }}<span class="stat-unit">h</span></div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">新连接</div>
-              <div class="stat-value">{{ overviewStats.新连接 }}<span class="stat-unit">个</span></div>
-            </div>
-          </div>
+          </el-collapse-transition>
         </el-card>
-
-        <!-- 三大课题总结 -->
-        <el-card class="mb-4" shadow="hover">
+        
+        <!-- 决策与内耗（可折叠） -->
+        <el-card v-if="formData.决策与内耗?.length > 0" class="mb-4" shadow="hover" id="overview-decisions">
           <template #header>
-            <div class="flex items-center gap-2">
-              <span class="text-2xl">🎯</span>
-              <span class="text-lg font-semibold">三大课题总结</span>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">💡</span>
+                <span class="text-lg font-semibold">决策与内耗</span>
+                <el-tag type="info" size="small">{{ formData.决策与内耗.length }} 项</el-tag>
+              </div>
+              <el-button 
+                text 
+                size="small" 
+                @click="overviewDecisionsExpanded = !overviewDecisionsExpanded"
+              >
+                {{ overviewDecisionsExpanded ? '收起' : '展开' }}
+              </el-button>
             </div>
           </template>
-          <div class="space-y-4">
-            <!-- 生活 -->
-            <div v-if="formData.生活?.主问题" class="topic-summary">
-              <div class="topic-header">
-                <span class="topic-icon">🌱</span>
-                <span class="topic-title">生活</span>
-              </div>
-              <div class="topic-content">
-                <div class="topic-question"><strong>主问题：</strong>{{ formData.生活.主问题 }}</div>
-                <div class="topic-action"><strong>今日行动：</strong>{{ formData.生活.今日行动 }}</div>
-                <div v-if="formData.生活.明日一小步" class="topic-next"><strong>明日一小步：</strong>{{ formData.生活.明日一小步 }}</div>
-              </div>
-            </div>
-            
-            <!-- 项目 -->
-            <div v-if="formData.项目?.今日关键推进" class="topic-summary">
-              <div class="topic-header">
-                <span class="topic-icon">💼</span>
-                <span class="topic-title">项目</span>
-              </div>
-              <div class="topic-content">
-                <div class="topic-question"><strong>今日关键推进：</strong>{{ formData.项目.今日关键推进 }}</div>
-                <div class="topic-action"><strong>项目进度感：</strong>{{ formData.项目.项目进度感 }}%</div>
-                <div v-if="formData.项目.明日任务列表" class="topic-next"><strong>明日任务：</strong>{{ formData.项目.明日任务列表 }}</div>
+          <el-collapse-transition>
+            <div v-show="overviewDecisionsExpanded">
+              <div class="space-y-4">
+                <div
+                  v-for="(decision, index) in formData.决策与内耗"
+                  :key="decision.决策ID"
+                  class="decision-summary-item"
+                >
+                  <div class="decision-header-summary">
+                    <span class="decision-number">决策 {{ index + 1 }}</span>
+                    <el-tag :type="decision.是否解决 ? 'success' : 'warning'" size="small">
+                      {{ decision.是否解决 ? '已决策' : '思考中' }}
+                    </el-tag>
+                  </div>
+                  <div class="decision-title-summary">{{ decision.决策主题 || '未命名决策' }}</div>
+                  <div v-if="decision.决策结论" class="decision-conclusion-summary">
+                    <strong>决策结论：</strong>{{ decision.决策结论 }}
+                  </div>
+                </div>
               </div>
             </div>
-            
-            <!-- 情感 -->
-            <div v-if="formData.情感?.今日焦点问题" class="topic-summary">
-              <div class="topic-header">
-                <span class="topic-icon">💕</span>
-                <span class="topic-title">情感</span>
-              </div>
-              <div class="topic-content">
-                <div class="topic-question"><strong>焦点问题：</strong>{{ formData.情感.今日焦点问题 }}</div>
-                <div class="topic-action"><strong>今日行动：</strong>{{ formData.情感.今日行动 }}</div>
-                <div v-if="formData.情感.明日一小步" class="topic-next"><strong>明日一小步：</strong>{{ formData.情感.明日一小步 }}</div>
-              </div>
-            </div>
-          </div>
+          </el-collapse-transition>
         </el-card>
-
-        <!-- 每日三省（核心） -->
-        <el-card v-if="formData.每日三省?.动机偏差 || formData.每日三省?.理想不一致 || formData.每日三省?.理想的一天" class="mb-4 reflections-card" shadow="hover">
+        
+        <!-- 习惯追踪（可折叠） -->
+        <el-card v-if="formData.习惯追踪?.length > 0" class="mb-4" shadow="hover" id="overview-habits">
           <template #header>
-            <div class="flex items-center gap-2">
-              <span class="text-2xl">💪</span>
-              <span class="text-lg font-semibold">今日三省（核心）</span>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">🔥</span>
+                <span class="text-lg font-semibold">习惯追踪</span>
+                <el-tag type="success" size="small">
+                  {{ overviewStats.已执行习惯数 || 0 }}/{{ overviewStats.习惯数 || 0 }} 已执行
+                </el-tag>
+              </div>
+              <el-button 
+                text 
+                size="small" 
+                @click="overviewHabitsExpanded = !overviewHabitsExpanded"
+              >
+                {{ overviewHabitsExpanded ? '收起' : '展开' }}
+              </el-button>
             </div>
           </template>
-          <div class="space-y-4">
-            <div v-if="formData.每日三省?.动机偏差" class="reflection-item">
-              <div class="reflection-question">🤔 动机偏差</div>
-              <div class="reflection-answer">{{ formData.每日三省.动机偏差 }}</div>
+          <el-collapse-transition>
+            <div v-show="overviewHabitsExpanded">
+              <div class="space-y-3">
+                <div
+                  v-for="(habit, index) in formData.习惯追踪"
+                  :key="habit.习惯ID"
+                  class="habit-summary-item"
+                  :class="{ 'habit-executed': habit.是否执行 }"
+                >
+                  <div class="flex items-center gap-3">
+                    <el-checkbox :model-value="habit.是否执行" disabled />
+                    <div class="flex-1">
+                      <div class="habit-name-summary">{{ habit.习惯名称 || '未命名习惯' }}</div>
+                      <div v-if="habit.连续天数 > 0" class="habit-streak-summary">
+                        连续 {{ habit.连续天数 }} 天 🔥
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div v-if="formData.每日三省?.理想不一致" class="reflection-item">
-              <div class="reflection-question">🎯 理想不一致</div>
-              <div class="reflection-answer">{{ formData.每日三省.理想不一致 }}</div>
-            </div>
-            <div v-if="formData.每日三省?.理想的一天" class="reflection-item">
-              <div class="reflection-question">🌟 理想的一天</div>
-              <div class="reflection-answer">{{ formData.每日三省.理想的一天 }}</div>
-            </div>
-          </div>
+          </el-collapse-transition>
         </el-card>
 
-        <!-- 连续天数 -->
-        <el-card v-if="overviewStreak > 0" class="mb-4 streak-card" shadow="hover">
-          <div class="flex items-center justify-between">
-            <div>
-              <div class="text-sm text-gray-600 mb-1">连续记录</div>
-              <div class="text-3xl font-bold text-orange-500">{{ overviewStreak }} 天</div>
-            </div>
-            <div class="text-5xl">🔥</div>
-          </div>
-          <div class="mt-3 text-sm text-gray-500">
-            <span v-if="overviewStreak >= 30">坚持一个月了，太厉害了！</span>
-            <span v-else-if="overviewStreak >= 7">坚持一周了，继续保持！</span>
-            <span v-else>继续坚持，形成习惯！</span>
-          </div>
-        </el-card>
-
-        <!-- 快速操作 -->
-        <el-card class="mb-4" shadow="hover">
+        <!-- 内容完整性提示 -->
+        <el-card v-if="overviewCompletionRate < 100" class="mb-4 completion-tip-card" shadow="hover">
           <template #header>
             <div class="flex items-center gap-2">
-              <span class="text-2xl">⚡</span>
-              <span class="text-lg font-semibold">快速操作</span>
+              <span class="text-xl">💡</span>
+              <span class="text-base font-semibold">完善建议</span>
+            </div>
+          </template>
+          <div class="completion-tips">
+            <div v-if="completionInfo.totalMissing > 0" class="tip-content">
+              <p class="tip-text">还有 <strong>{{ completionInfo.totalMissing }}</strong> 项待完善，完善后可以获得更好的记录体验。</p>
+              <el-button 
+                type="primary" 
+                size="small" 
+                @click="handleGoToEdit"
+                class="mt-2"
+              >
+                去完善
+              </el-button>
+            </div>
+          </div>
+        </el-card>
+
+        <!-- 快速操作（增强版） -->
+        <el-card class="mb-4" shadow="hover" id="overview-actions">
+          <template #header>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">⚡</span>
+                <span class="text-lg font-semibold">快速操作</span>
+              </div>
+              <div class="text-xs text-gray-400 hidden md:block">
+                快捷键：Esc 关闭 | Ctrl+E 导出 | Ctrl+C 复制
+              </div>
             </div>
           </template>
           <div class="flex flex-col md:flex-row gap-3">
@@ -449,26 +791,49 @@
               size="default"
               @click="handleOverviewExport"
               :icon="Download"
-              class="flex-1"
+              class="flex-1 action-btn"
+              title="导出为 Markdown 文件 (Ctrl+E)"
             >
               导出Markdown
             </el-button>
             <el-button
               type="success"
               size="default"
-              @click="handleNewDay"
-              :icon="Calendar"
-              class="flex-1"
+              @click="handleCopyToClipboard"
+              :icon="DocumentCopy"
+              class="flex-1 action-btn"
+              title="复制内容到剪贴板 (Ctrl+C)"
             >
-              新的一天
+              复制内容
             </el-button>
             <el-button
-              type="default"
+              type="info"
               size="default"
-              @click="showOverviewDialog = false"
-              class="flex-1"
+              @click="handlePrintPreview"
+              :icon="Printer"
+              class="flex-1 action-btn"
+              title="打印预览 (Ctrl+P)"
             >
-              关闭
+              打印预览
+            </el-button>
+            <el-button
+              type="warning"
+              size="default"
+              @click="handleGoToEdit"
+              class="flex-1 action-btn"
+              title="返回编辑页面"
+            >
+              继续编辑
+            </el-button>
+            <el-button
+              type="success"
+              size="default"
+              @click="handleNewDay"
+              :icon="Calendar"
+              class="flex-1 action-btn"
+              title="切换到新的一天"
+            >
+              新的一天
             </el-button>
           </div>
         </el-card>
@@ -496,27 +861,33 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Download, ArrowLeft, ArrowRight, Calendar, Check, User } from '@element-plus/icons-vue'
+import { Download, ArrowLeft, ArrowRight, Calendar, Check, User, DocumentCopy, Printer, Menu, Document, Star, List, Location, CircleCheck, Setting } from '@element-plus/icons-vue'
 import { getTodayDate, getDiaryData, saveDiaryData, getAllDates, getDefaultData } from '../utils/storage'
 import { exportToMarkdown, downloadFile } from '../utils/export'
 import { checkOverallComplete } from '../utils/validation'
+import { calculateAchievements, calculateStats, generateEncouragement, calculateStreak } from '../utils/gamification'
 import { onAuthChange, getCurrentUser, waitForAuth } from '../utils/firebaseAuth'
 import { subscribeDiaryData } from '../utils/firebaseStorage'
 import OverviewModule from '../components/OverviewModule.vue'
-import LifeModule from '../components/LifeModule.vue'
-import ProjectModule from '../components/ProjectModule.vue'
-import LoveModule from '../components/LoveModule.vue'
+import DailyThreadProgressModule from '../components/DailyThreadProgressModule.vue'
+import DecisionModule from '../components/DecisionModule.vue'
+import ProblemLibraryModule from '../components/ProblemLibraryModule.vue'
+import HabitTrackingModule from '../components/HabitTrackingModule.vue'
 import ThreeReflectionsModule from '../components/ThreeReflectionsModule.vue'
+import LifeThreadsSetup from '../components/LifeThreadsSetup.vue'
 import Login from '../components/Login.vue'
+import { getLifeThreads, saveLifeThreads } from '../utils/storage'
 
 const currentDate = ref(getTodayDate())
 const activeStep = ref(0)
 const showHistoryDialog = ref(false)
 const showLoginDialog = ref(false)
+const showThreadsSetupDialog = ref(false)
 const user = ref(null)
 // 初始化formData，使用getDefaultData确保数据结构完整
-// 初始化formData，使用getDefaultData确保数据结构完整
 const formData = ref(getDefaultData())
+// 人生主线数据
+const lifeThreads = ref([])
 
 // 历史记录日期列表
 const historyDates = ref([])
@@ -558,20 +929,24 @@ function formatDate(dateStr) {
 async function getDateSummary(dateStr) {
   try {
     const data = await getDiaryData(dateStr)
-    // 新数据结构：三大课题模型
+    // 新数据结构：人生主线系统
     const hasContent = (data.今日概览?.一句话标题) ||
-                       (data.生活?.主问题) ||
-                       (data.项目?.今日关键推进) ||
-                       (data.情感?.今日焦点问题) ||
+                       (data.今日主线推进?.length > 0) ||
+                       (data.决策与内耗?.length > 0) ||
+                       (data.问题库?.length > 0) ||
+                       (data.习惯追踪?.length > 0) ||
                        (data.每日三省?.动机偏差)
     
     if (hasContent) {
-      // 统计已填写的课题数
+      // 统计已填写的模块数
       let completedCount = 0
-      if (data.生活?.主问题) completedCount++
-      if (data.项目?.今日关键推进) completedCount++
-      if (data.情感?.今日焦点问题) completedCount++
-      return `已填写 (${completedCount}/3课题)`
+      if (data.今日概览?.一句话标题) completedCount++
+      if (data.今日主线推进?.length > 0) completedCount++
+      if (data.决策与内耗?.length > 0) completedCount++
+      if (data.问题库?.length > 0) completedCount++
+      if (data.习惯追踪?.length > 0) completedCount++
+      if (data.每日三省?.动机偏差) completedCount++
+      return `已填写 (${completedCount}/6模块)`
     }
     return '未填写'
   } catch (e) {
@@ -581,9 +956,26 @@ async function getDateSummary(dateStr) {
 }
 
 // 选择历史日期
-function selectHistoryDate(date) {
+async function selectHistoryDate(date) {
+  if (!date) return
+  
+  // 先保存当前日期的数据（如果数据有变化）
+  if (user.value && editingDate.value) {
+    try {
+      await saveDataImmediately()
+    } catch (e) {
+      console.warn('切换日期前保存失败:', e)
+    }
+  }
+  
+  // 切换到选中的日期
   currentDate.value = date
   showHistoryDialog.value = false
+  
+  // 加载选中日期的数据
+  await loadData(date)
+  
+  ElMessage.success(`已切换到 ${formatDate(date)}`)
 }
 
 // 日期导航
@@ -611,10 +1003,22 @@ const editingDate = ref(getTodayDate())
 // 记录上次保存的数据，用于比较是否有变化
 const lastSavedData = ref(null)
 
+// 标记是否正在加载数据，避免实时监听覆盖
+const isLoadingData = ref(false)
+// 标记是否正在加载历史记录
+const isLoadingHistory = ref(false)
+
+// 记录最后一次保存的时间戳，用于判断实时更新是否来自当前设备的保存
+const lastSaveTimestamp = ref(null)
+// 标记是否正在保存，保存期间忽略实时监听更新
+const isSavingRef = ref(false)
+
 // 加载数据（支持异步）
 async function loadData(date = null) {
   const targetDate = date || currentDate.value
   editingDate.value = targetDate
+  
+  isLoadingData.value = true
   
   try {
     const data = await getDiaryData(targetDate)
@@ -623,13 +1027,16 @@ async function loadData(date = null) {
     const cleanData = JSON.parse(JSON.stringify(data))
     
     // 确保所有必需的字段都存在，使用默认值填充缺失的字段
-    formData.value = {
+    const newFormData = {
       今日概览: cleanData.今日概览 || defaultData.今日概览,
-      生活: cleanData.生活 || defaultData.生活,
-      项目: cleanData.项目 || defaultData.项目,
-      情感: cleanData.情感 || defaultData.情感,
+      今日主线推进: Array.isArray(cleanData.今日主线推进) ? cleanData.今日主线推进 : (defaultData.今日主线推进 || []),
+      决策与内耗: Array.isArray(cleanData.决策与内耗) ? cleanData.决策与内耗 : (defaultData.决策与内耗 || []),
+      问题库: Array.isArray(cleanData.问题库) ? cleanData.问题库 : (defaultData.问题库 || []),
+      习惯追踪: Array.isArray(cleanData.习惯追踪) ? cleanData.习惯追踪 : (defaultData.习惯追踪 || []),
       每日三省: cleanData.每日三省 || defaultData.每日三省
     }
+    
+    formData.value = newFormData
     
     // 更新上次保存的数据（用于比较变化）
     lastSavedData.value = JSON.parse(JSON.stringify(formData.value))
@@ -647,13 +1054,66 @@ async function loadData(date = null) {
           user.value.uid,
           targetDate,
           (data) => {
+            // 如果正在加载数据，忽略实时更新（避免覆盖）
+            if (isLoadingData.value) {
+              return
+            }
+            
+            // 如果正在保存，忽略实时更新（避免覆盖用户正在输入的内容）
+            if (isSavingRef.value) {
+              console.log('正在保存中，忽略实时监听更新')
+              return
+            }
+            
+            // 如果更新来自刚刚的保存（1秒内），忽略（避免覆盖用户正在输入的内容）
+            if (data && data.updatedAt && lastSaveTimestamp.value) {
+              const updateTime = new Date(data.updatedAt).getTime()
+              const timeDiff = Math.abs(updateTime - lastSaveTimestamp.value)
+              if (timeDiff < 2000) { // 2秒内的更新认为是自己保存的
+                console.log('实时监听：忽略来自当前设备的更新（避免覆盖用户输入）')
+                return
+              }
+            }
+            
             if (data) {
               // 移除Firebase的元数据
               const { date, updatedAt, ...diaryData } = data
               const cleanData = JSON.parse(JSON.stringify(diaryData))
-              formData.value = cleanData
-              // 更新上次保存的数据（来自其他设备的更新）
-              lastSavedData.value = cleanData
+              
+              // 确保数据结构完整
+              const defaultData = getDefaultData()
+              const mergedData = {
+                今日概览: cleanData.今日概览 || defaultData.今日概览,
+                今日主线推进: Array.isArray(cleanData.今日主线推进) ? cleanData.今日主线推进 : (defaultData.今日主线推进 || []),
+                决策与内耗: Array.isArray(cleanData.决策与内耗) ? cleanData.决策与内耗 : (defaultData.决策与内耗 || []),
+                问题库: Array.isArray(cleanData.问题库) ? cleanData.问题库 : (defaultData.问题库 || []),
+                习惯追踪: Array.isArray(cleanData.习惯追踪) ? cleanData.习惯追踪 : (defaultData.习惯追踪 || []),
+                每日三省: cleanData.每日三省 || defaultData.每日三省
+              }
+              
+              // 只在数据确实变化时才更新（避免覆盖用户正在编辑的内容）
+              // 并且只有当新数据比当前数据"更新"时才更新（来自其他设备的更新）
+              const currentStr = JSON.stringify(formData.value)
+              const newStr = JSON.stringify(mergedData)
+              
+              if (currentStr !== newStr) {
+                // 检查是否是用户正在编辑的内容（当前数据比保存的数据"新"）
+                const lastSavedStr = lastSavedData.value ? JSON.stringify(lastSavedData.value) : ''
+                const isUserEditing = currentStr !== lastSavedStr
+                
+                if (isUserEditing) {
+                  // 用户正在编辑，不覆盖（除非数据明显来自其他设备）
+                  console.log('实时监听：检测到用户正在编辑，不覆盖本地数据')
+                  // 可以选择性地提示用户有其他设备更新了数据
+                  // ElMessage.info('检测到其他设备的数据更新，但您正在编辑，暂不覆盖')
+                } else {
+                  // 用户没有在编辑，可以安全更新
+                  console.log('实时监听：检测到数据变化，更新formData（来自其他设备）')
+                  formData.value = mergedData
+                  // 更新上次保存的数据（来自其他设备的更新）
+                  lastSavedData.value = JSON.parse(JSON.stringify(mergedData))
+                }
+              }
             }
           }
         )
@@ -666,6 +1126,20 @@ async function loadData(date = null) {
     ElMessage.error('加载数据失败：' + error.message)
     // 使用默认数据
     formData.value = JSON.parse(JSON.stringify(getDefaultData()))
+  } finally {
+    // 延迟重置加载标志，确保子组件有时间更新
+    // 添加最小加载时间，避免闪烁（如果加载太快）
+    const minLoadTime = 300 // 最小显示300ms
+    const loadStartTime = Date.now()
+    
+    setTimeout(() => {
+      const elapsed = Date.now() - loadStartTime
+      const remaining = Math.max(0, minLoadTime - elapsed)
+      
+      setTimeout(() => {
+        isLoadingData.value = false
+      }, remaining)
+    }, 100)
   }
 }
 
@@ -698,9 +1172,20 @@ async function saveManually() {
     editingDate.value = currentDate.value
   }
   
+  // 如果正在保存，等待完成
+  if (isSaving.value) {
+    ElMessage.info('正在保存中，请稍候...')
+    return
+  }
+  
+  // 清除防抖定时器
   if (saveTimer) {
     clearTimeout(saveTimer)
+    saveTimer = null
   }
+  
+  isSaving.value = true
+  isSavingRef.value = true // 标记正在保存
   try {
     const currentData = JSON.parse(JSON.stringify(formData.value))
     console.log('手动保存数据到服务器...', {
@@ -710,16 +1195,30 @@ async function saveManually() {
     })
     await saveDiaryData(editingDate.value, currentData)
     lastSavedData.value = currentData
+    lastSaveTimestamp.value = Date.now() // 记录保存时间戳
     console.log('手动保存成功')
     ElMessage.success('数据已保存')
+    
+    // 保存成功后，更新历史记录列表
+    await updateHistoryDates()
+    
+    // 延迟重置保存标志，确保实时监听不会立即覆盖
+    setTimeout(() => {
+      isSavingRef.value = false
+    }, 2000) // 2秒后重置
   } catch (error) {
     console.error('保存数据失败:', error)
     ElMessage.error('保存数据失败：' + error.message)
+    isSavingRef.value = false // 保存失败立即重置
+  } finally {
+    isSaving.value = false
   }
 }
 
 // 防抖保存函数（支持异步，只在数据变化时保存）
 let saveTimer = null
+// isSaving已经在上面定义为ref了
+
 async function saveData(showMessage = false) {
   // 检查用户是否已登录
   if (!user.value) {
@@ -736,10 +1235,22 @@ async function saveData(showMessage = false) {
     editingDate.value = currentDate.value
   }
   
+  // 如果正在保存，跳过
+  if (isSaving.value) {
+    console.log('正在保存中，跳过本次保存')
+    return
+  }
+  
   if (saveTimer) {
     clearTimeout(saveTimer)
   }
   saveTimer = setTimeout(async () => {
+    if (isSaving.value) {
+      return
+    }
+    
+    isSaving.value = true
+    isSavingRef.value = true // 标记正在保存
     try {
       const currentData = JSON.parse(JSON.stringify(formData.value))
       
@@ -754,6 +1265,7 @@ async function saveData(showMessage = false) {
       if (!hasChanged) {
         // 数据没有变化，跳过保存
         console.log('数据未变化，跳过保存')
+        isSavingRef.value = false // 重置保存标志
         return
       }
       
@@ -764,13 +1276,27 @@ async function saveData(showMessage = false) {
       
       // 更新上次保存的数据
       lastSavedData.value = currentData
+      lastSaveTimestamp.value = Date.now() // 记录保存时间戳
+      
+      // 保存成功后，更新历史记录列表（静默更新，不显示消息）
+      updateHistoryDates().catch(err => {
+        console.warn('更新历史记录列表失败:', err)
+      })
       
       if (showMessage) {
         ElMessage.success('数据已保存')
       }
+      
+      // 延迟重置保存标志，确保实时监听不会立即覆盖
+      setTimeout(() => {
+        isSavingRef.value = false
+      }, 2000) // 2秒后重置
     } catch (error) {
       console.error('保存数据失败:', error)
       ElMessage.error('保存数据失败：' + error.message)
+      isSavingRef.value = false // 保存失败立即重置
+    } finally {
+      isSaving.value = false
     }
   }, 1000) // 1秒防抖
 }
@@ -789,9 +1315,29 @@ async function saveDataImmediately() {
     editingDate.value = currentDate.value
   }
   
+  // 如果正在保存，等待完成
+  if (isSaving.value) {
+    console.log('正在保存中，等待完成...')
+    // 等待最多3秒
+    let waitCount = 0
+    while (isSaving.value && waitCount < 30) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      waitCount++
+    }
+    if (isSaving.value) {
+      console.warn('保存超时，跳过立即保存')
+      return
+    }
+  }
+  
+  // 清除防抖定时器
   if (saveTimer) {
     clearTimeout(saveTimer)
+    saveTimer = null
   }
+  
+  isSaving.value = true
+  isSavingRef.value = true // 标记正在保存
   try {
     const currentData = JSON.parse(JSON.stringify(formData.value))
     
@@ -806,6 +1352,7 @@ async function saveDataImmediately() {
     if (!hasChanged) {
       // 数据没有变化，跳过保存
       console.log('立即保存 - 数据未变化，跳过保存')
+      isSavingRef.value = false // 重置保存标志
       return
     }
     
@@ -816,9 +1363,23 @@ async function saveDataImmediately() {
     
     // 更新上次保存的数据
     lastSavedData.value = currentData
+    lastSaveTimestamp.value = Date.now() // 记录保存时间戳
+    
+    // 保存成功后，更新历史记录列表（静默更新）
+    updateHistoryDates().catch(err => {
+      console.warn('更新历史记录列表失败:', err)
+    })
+    
+    // 延迟重置保存标志，确保实时监听不会立即覆盖
+    setTimeout(() => {
+      isSavingRef.value = false
+    }, 2000) // 2秒后重置
   } catch (error) {
     console.error('立即保存数据失败:', error)
     ElMessage.error('保存数据失败：' + error.message)
+    isSavingRef.value = false // 保存失败立即重置
+  } finally {
+    isSaving.value = false
   }
 }
 
@@ -846,7 +1407,7 @@ async function handleStepClick(index) {
 
 // 下一步
 async function handleNext() {
-  if (activeStep.value < 4) {
+  if (activeStep.value < 5) {
     await saveDataImmediately()
     activeStep.value++
   }
@@ -873,6 +1434,21 @@ const overviewAchievements = ref([])
 const overviewStats = ref({})
 const overviewStreak = ref(0)
 const overviewEncouragements = ref([])
+const overviewCompletionRate = ref(0)
+const isCalculatingOverview = ref(false)
+
+// 预览弹窗折叠状态
+const overviewAchievementsExpanded = ref(true)
+const overviewStatsExpanded = ref(true)
+const overviewReflectionsExpanded = ref(true)
+const overviewDecisionsExpanded = ref(false)
+const overviewHabitsExpanded = ref(false)
+
+// 预览弹窗内容引用（用于快速导航）
+const overviewContentRef = ref(null)
+
+// 保存状态（需要在script中暴露给template）
+const isSaving = ref(false)
 
 const mainEncouragement = computed(() => {
   return overviewEncouragements.value[0] || {
@@ -890,33 +1466,166 @@ async function handlePreview() {
 
 // 弹窗打开后计算数据
 async function handleOverviewOpened() {
-  // 计算成就
-  overviewAchievements.value = calculateAchievements(formData.value, currentDate.value)
+  isCalculatingOverview.value = true
   
-  // 计算统计数据
-  overviewStats.value = calculateStats(formData.value)
-  
-  // 计算鼓励信息
-  overviewEncouragements.value = generateEncouragement(overviewAchievements.value, overviewStats.value)
-  
-  // 计算连续天数
   try {
-    const dates = await getAllDates()
-    overviewStreak.value = calculateStreak(dates || [])
-  } catch (e) {
-    console.error('加载日期列表失败:', e)
-    overviewStreak.value = 0
+    // 计算完成度
+    const completionInfo = checkOverallComplete(formData.value)
+    overviewCompletionRate.value = completionInfo.completionRate || 0
+    
+    // 计算成就
+    overviewAchievements.value = calculateAchievements(formData.value, currentDate.value)
+    
+    // 计算统计数据
+    overviewStats.value = calculateStats(formData.value)
+    
+    // 计算鼓励信息
+    overviewEncouragements.value = generateEncouragement(overviewAchievements.value, overviewStats.value)
+    
+    // 计算连续天数
+    try {
+      const dates = await getAllDates()
+      const streak = calculateStreak(dates || [])
+      // 确保是数字类型
+      overviewStreak.value = typeof streak === 'number' ? streak : 0
+    } catch (e) {
+      console.error('加载日期列表失败:', e)
+      overviewStreak.value = 0
+    }
+    
+    // 重置折叠状态
+    overviewAchievementsExpanded.value = overviewAchievements.value.length > 0
+    overviewStatsExpanded.value = true
+    overviewReflectionsExpanded.value = true
+    overviewDecisionsExpanded.value = false
+    overviewHabitsExpanded.value = false
+    
+    // 添加键盘快捷键监听
+    document.addEventListener('keydown', handleOverviewKeyboard)
+  } finally {
+    // 延迟隐藏加载状态，确保动画流畅
+    setTimeout(() => {
+      isCalculatingOverview.value = false
+    }, 300)
+  }
+}
+
+// 弹窗关闭时移除键盘监听
+watch(showOverviewDialog, (newVal) => {
+  if (!newVal) {
+    document.removeEventListener('keydown', handleOverviewKeyboard)
+  }
+})
+
+// 快速导航处理
+function handleQuickNav(command) {
+  // 先展开对应的折叠部分
+  switch(command) {
+    case 'achievements':
+      overviewAchievementsExpanded.value = true
+      break
+    case 'stats':
+      overviewStatsExpanded.value = true
+      break
+    case 'reflections':
+      overviewReflectionsExpanded.value = true
+      break
+    case 'decisions':
+      overviewDecisionsExpanded.value = true
+      break
+    case 'habits':
+      overviewHabitsExpanded.value = true
+      break
   }
   
-  // 添加庆祝动画效果
+  // 等待DOM更新后再滚动
   setTimeout(() => {
-    const emojis = document.querySelectorAll('.celebration-emoji')
-    emojis.forEach((emoji, index) => {
-      setTimeout(() => {
-        emoji.style.animation = 'bounce 0.6s ease-in-out'
-      }, index * 100)
-    })
-  }, 100)
+    const elementId = `overview-${command}`
+    const element = document.getElementById(elementId)
+    
+    if (!element) {
+      ElMessage.warning('未找到目标区域')
+      return
+    }
+    
+    // 优先使用overviewContentRef，如果没有则查找最近的滚动容器
+    const scrollContainer = overviewContentRef.value || 
+                           element.closest('.overview-content') ||
+                           element.closest('.el-dialog__body') ||
+                           document.querySelector('.overview-dialog .el-dialog__body')
+    
+    if (scrollContainer) {
+      // 计算目标元素相对于容器的位置
+      const containerRect = scrollContainer.getBoundingClientRect()
+      const elementRect = element.getBoundingClientRect()
+      const currentScrollTop = scrollContainer.scrollTop || 0
+      const targetScrollTop = currentScrollTop + elementRect.top - containerRect.top - 20 // 20px 偏移
+      
+      // 平滑滚动
+      scrollContainer.scrollTo({
+        top: Math.max(0, targetScrollTop),
+        behavior: 'smooth'
+      })
+      
+      ElMessage.success('已跳转到' + getSectionName(command))
+    } else {
+      // 备用方案：使用标准滚动（会滚动整个页面）
+      element.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start',
+        inline: 'nearest'
+      })
+      ElMessage.success('已跳转到' + getSectionName(command))
+    }
+  }, 150) // 增加延迟确保DOM更新完成
+}
+
+// 获取章节名称
+function getSectionName(command) {
+  const names = {
+    summary: '核心摘要',
+    achievements: '今日成就',
+    stats: '数据统计',
+    threads: '主线推进',
+    reflections: '今日三省',
+    decisions: '决策与内耗',
+    habits: '习惯追踪',
+    actions: '快速操作'
+  }
+  return names[command] || '该部分'
+}
+
+// 键盘快捷键处理
+function handleOverviewKeyboard(event) {
+  // 只在预览弹窗打开时处理
+  if (!showOverviewDialog.value) return
+  
+  // Ctrl/Cmd + E: 导出
+  if ((event.ctrlKey || event.metaKey) && event.key === 'e') {
+    event.preventDefault()
+    handleOverviewExport()
+    return
+  }
+  
+  // Ctrl/Cmd + C: 复制（只在没有选中文本时）
+  if ((event.ctrlKey || event.metaKey) && event.key === 'c' && !window.getSelection().toString()) {
+    event.preventDefault()
+    handleCopyToClipboard()
+    return
+  }
+  
+  // Ctrl/Cmd + P: 打印预览
+  if ((event.ctrlKey || event.metaKey) && event.key === 'p') {
+    event.preventDefault()
+    handlePrintPreview()
+    return
+  }
+  
+  // Esc: 关闭弹窗
+  if (event.key === 'Escape') {
+    showOverviewDialog.value = false
+    return
+  }
 }
 
 // 导出（在总览弹窗中）
@@ -932,6 +1641,79 @@ function handleNewDay() {
   showOverviewDialog.value = false
   // 切换到今天
   currentDate.value = getTodayDate()
+  ElMessage.success('已切换到新的一天，开始新的记录吧！')
+}
+
+// 复制内容到剪贴板
+async function handleCopyToClipboard() {
+  try {
+    const markdown = exportToMarkdown(currentDate.value, formData.value)
+    await navigator.clipboard.writeText(markdown)
+    ElMessage.success('内容已复制到剪贴板')
+  } catch (error) {
+    console.error('复制失败:', error)
+    ElMessage.error('复制失败，请手动复制')
+  }
+}
+
+// 打印预览
+function handlePrintPreview() {
+  const printWindow = window.open('', '_blank')
+  const markdown = exportToMarkdown(currentDate.value, formData.value)
+  
+  // 将Markdown转换为HTML（简单版本）
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>日记 - ${currentDate.value}</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
+        h1 { border-bottom: 2px solid #333; padding-bottom: 10px; }
+        h2 { margin-top: 30px; color: #409eff; }
+        h3 { margin-top: 20px; color: #666; }
+        p { line-height: 1.8; }
+        strong { color: #333; }
+        .date { color: #999; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <h1>日记 - ${currentDate.value}</h1>
+      <div class="date">${formatDate(currentDate.value)}</div>
+      <div style="white-space: pre-wrap; line-height: 1.8;">${markdown.replace(/\n/g, '<br>').replace(/#{1,6}\s/g, (match) => {
+        const level = match.trim().length
+        return `<h${level}>`
+      })}</div>
+    </body>
+    </html>
+  `
+  
+  printWindow.document.write(html)
+  printWindow.document.close()
+  
+  setTimeout(() => {
+    printWindow.print()
+  }, 500)
+}
+
+// 跳转到编辑
+function handleGoToEdit() {
+  showOverviewDialog.value = false
+  // 根据完成度跳转到第一个未完成的步骤
+  const completionInfo = checkOverallComplete(formData.value)
+  
+  if (!completionInfo.results.今日概览.complete) {
+    activeStep.value = 0
+  } else if (!completionInfo.results.今日主线推进.complete) {
+    activeStep.value = 1
+  } else if (!completionInfo.results.每日三省.complete) {
+    activeStep.value = 5
+  } else {
+    activeStep.value = 0
+  }
+  
+  ElMessage.info('已跳转到编辑页面')
 }
 
 // 导出
@@ -952,6 +1734,7 @@ async function handleUserLogin(userData) {
   // 重新加载数据
   await loadData()
   await updateHistoryDates()
+  await loadLifeThreads()
   
   // 监听日期列表变化
   if (window.datesUnsubscribe) {
@@ -961,6 +1744,29 @@ async function handleUserLogin(userData) {
   window.datesUnsubscribe = subscribeAllDates(userData.uid, (dates) => {
     historyDates.value = dates
   })
+}
+
+// 加载人生主线
+async function loadLifeThreads() {
+  try {
+    const threads = await getLifeThreads()
+    if (threads.length > 0) {
+      lifeThreads.value = threads
+    } else {
+      // 如果没有主线，提示用户设置
+      lifeThreads.value = []
+    }
+  } catch (error) {
+    console.error('加载人生主线失败:', error)
+    lifeThreads.value = []
+  }
+}
+
+// 主线保存后的处理
+async function handleThreadsSaved(threads) {
+  lifeThreads.value = threads
+  showThreadsSetupDialog.value = false
+  ElMessage.success('人生主线已更新')
 }
 
 // 用户登出
@@ -990,19 +1796,48 @@ watch(currentDate, async (newDate) => {
 
 // 更新历史记录列表
 async function updateHistoryDates() {
+  // 如果用户未登录，清空历史记录
+  if (!user.value) {
+    historyDates.value = []
+    dateSummaryMap.value = {}
+    isLoadingHistory.value = false
+    return
+  }
+  
+  isLoadingHistory.value = true
   try {
+    console.log('更新历史记录列表...')
     const dates = await getAllDates()
-    historyDates.value = dates
+    console.log('获取到历史日期:', dates)
+    historyDates.value = dates || []
     
     // 异步加载所有日期的摘要
     dates.forEach(async (date) => {
       if (!dateSummaryMap.value[date]) {
-        dateSummaryMap.value[date] = await getDateSummary(date)
+        try {
+          dateSummaryMap.value[date] = await getDateSummary(date)
+        } catch (e) {
+          console.warn(`获取日期 ${date} 摘要失败:`, e)
+          dateSummaryMap.value[date] = '加载失败'
+        }
       }
     })
   } catch (e) {
     console.error('加载日期列表失败:', e)
     historyDates.value = []
+  } finally {
+    // 延迟重置加载状态，避免闪烁
+    setTimeout(() => {
+      isLoadingHistory.value = false
+    }, 300)
+  }
+}
+
+// 历史记录对话框打开时的处理
+async function handleHistoryDialogOpened() {
+  // 打开对话框时刷新历史记录列表
+  if (user.value) {
+    await updateHistoryDates()
   }
 }
 
@@ -1030,6 +1865,7 @@ onMounted(async () => {
   // 初始化加载数据
   await loadData()
   await updateHistoryDates()
+  await loadLifeThreads()
   
   // 添加键盘快捷键监听
   window.addEventListener('keydown', handleKeydown)
@@ -1042,6 +1878,7 @@ onMounted(async () => {
       // 用户登录后重新加载数据
       loadData()
       updateHistoryDates()
+      loadLifeThreads()
       
       // 监听日期列表变化
       // 取消之前的监听
@@ -1085,6 +1922,12 @@ const completionInfo = computed(() => {
   return checkOverallComplete(formData.value)
 })
 
+// 根据主线ID获取主线名称（用于预览）
+function getThreadNameById(threadId) {
+  const thread = lifeThreads.value.find(t => t.主线ID === threadId)
+  return thread ? thread.主线名称 : '未知主线'
+}
+
 // 自动保存（防抖，不显示消息）
 watch(formData, () => {
   // 确保用户已登录且使用正确的日期保存
@@ -1100,6 +1943,76 @@ watch(formData, () => {
 </script>
 
 <style scoped>
+/* 内容卡片过渡动画 */
+.content-card {
+  transition: opacity 0.3s ease;
+  position: relative;
+}
+
+/* 淡入淡出过渡效果 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.fade-enter-to,
+.fade-leave-from {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 加载状态样式优化 */
+:deep(.el-loading-mask) {
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.9);
+  transition: opacity 0.3s ease;
+}
+
+:deep(.el-loading-spinner) {
+  margin-top: -25px;
+}
+
+:deep(.el-loading-text) {
+  color: #409eff;
+  font-size: 14px;
+  margin-top: 10px;
+  font-weight: 500;
+}
+
+:deep(.el-loading-spinner .path) {
+  stroke: #409eff;
+}
+
+/* 历史记录列表过渡动画 */
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.3s ease;
+}
+
+.list-enter-from {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.list-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.list-move {
+  transition: transform 0.3s ease;
+}
+
 :deep(.el-steps) {
   background: transparent;
 }
@@ -1287,6 +2200,7 @@ watch(formData, () => {
 .overview-dialog :deep(.el-dialog__header) {
   padding: 16px 20px;
   border-bottom: 1px solid #f0f0f0;
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
 }
 
 .overview-dialog :deep(.el-dialog__title) {
@@ -1295,10 +2209,177 @@ watch(formData, () => {
   color: #1f2937;
 }
 
+.dialog-header-custom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.header-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.completion-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.tag-icon {
+  font-size: 14px;
+}
+
 .overview-content {
   max-height: 75vh;
   overflow-y: auto;
   padding: 0;
+  scroll-behavior: smooth;
+}
+
+/* 核心摘要卡片样式 */
+.summary-hero-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.hero-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 20px;
+}
+
+.hero-left {
+  flex: 1;
+}
+
+.hero-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+
+.hero-subtitle {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.hero-right {
+  flex-shrink: 0;
+}
+
+.hero-stats {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.hero-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 70px;
+}
+
+.stat-item-enhanced {
+  position: relative;
+  padding: 8px 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.stat-visual-wrapper {
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.stat-visual-bar {
+  width: 100%;
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.stat-visual-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+
+.energy-fill {
+  background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+}
+
+.stress-fill {
+  background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%);
+}
+
+.stat-value-large {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.streak-value {
+  color: #f59e0b !important;
+}
+
+.streak-badge-mini {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  font-size: 16px;
+  animation: pulse 2s infinite;
+}
+
+.stat-label-small {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.hero-stat-divider {
+  width: 1px;
+  height: 40px;
+  background: #e5e7eb;
+}
+
+.hero-progress {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.progress-percentage {
+  font-weight: 600;
+  color: #1f2937;
 }
 
 .celebration-header {
@@ -1555,6 +2636,60 @@ watch(formData, () => {
   flex: 1;
 }
 
+/* 快速操作按钮优化 */
+.action-btn {
+  transition: all 0.3s ease;
+}
+
+.action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* 快速导航下拉菜单优化 */
+.overview-dialog :deep(.el-dropdown-menu) {
+  padding: 8px;
+}
+
+.overview-dialog :deep(.el-dropdown-menu__item) {
+  padding: 10px 16px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.overview-dialog :deep(.el-dropdown-menu__item:hover) {
+  background: #f3f4f6;
+  transform: translateX(4px);
+}
+
+/* 滚动到目标时的动画效果 */
+[id^="overview-"] {
+  scroll-margin-top: 20px;
+  transition: all 0.3s ease;
+}
+
+[id^="overview-"]:target {
+  animation: highlight 1s ease;
+}
+
+@keyframes highlight {
+  0%, 100% {
+    background-color: transparent;
+  }
+  50% {
+    background-color: rgba(102, 126, 234, 0.1);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
 @keyframes float {
   0%, 100% {
     transform: translateY(0);
@@ -1598,6 +2733,45 @@ watch(formData, () => {
 
   .achievement-icon {
     font-size: 1.5rem;
+  }
+
+  /* 预览弹窗移动端优化 */
+  .dialog-header-custom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .hero-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hero-stats {
+    width: 100%;
+    justify-content: space-around;
+  }
+
+  .hero-stat-item {
+    min-width: auto;
+    flex: 1;
+  }
+
+  .hero-title {
+    font-size: 1.25rem;
+  }
+
+  .summary-hero-card {
+    padding: 16px;
+  }
+
+  .overview-dialog :deep(.el-dialog) {
+    width: 98% !important;
+    margin: 2vh auto;
+  }
+
+  .overview-content {
+    max-height: 85vh;
   }
 }
 
