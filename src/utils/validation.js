@@ -116,42 +116,24 @@ export function checkProblemComplete(data) {
   }
 }
 
-// 检查习惯追踪模块完整性（可选）
-export function checkHabitComplete(data) {
-  if (!data || !Array.isArray(data) || data.length === 0) {
-    return { complete: true, missing: [] } // 习惯追踪是可选的
-  }
+// 检查明日计划模块完整性
+export function checkTomorrowPlanComplete(data) {
+  if (!data) return { complete: false, missing: ['明日计划数据为空'] }
   
   const missing = []
   
-  data.forEach((habit, index) => {
-    if (!habit.习惯名称 || habit.习惯名称.trim() === '') {
-      missing.push(`习惯${index + 1}：缺少习惯名称`)
-    }
-  })
-  
-  return {
-    complete: missing.length === 0,
-    missing
-  }
-}
-
-// 检查每日三省模块完整性
-export function checkReflectionsComplete(data) {
-  if (!data) return { complete: false, missing: ['每日三省数据为空'] }
-  
-  const missing = []
-  
-  if (!data.动机偏差 || data.动机偏差.trim() === '') {
-    missing.push('缺少"动机偏差"的反思')
+  // 承诺是必填的
+  if (!data.承诺 || data.承诺.trim() === '') {
+    missing.push('缺少"明日承诺"')
   }
   
-  if (!data.理想不一致 || data.理想不一致.trim() === '') {
-    missing.push('缺少"理想不一致"的反思')
-  }
-  
-  if (!data.主线对齐 || data.主线对齐.trim() === '') {
-    missing.push('缺少"主线对齐"的反思')
+  // 如果有计划列表，检查每个计划的必填字段
+  if (data.计划列表 && Array.isArray(data.计划列表) && data.计划列表.length > 0) {
+    data.计划列表.forEach((plan, index) => {
+      if (!plan.任务内容 || plan.任务内容.trim() === '') {
+        missing.push(`计划${index + 1}：缺少任务内容`)
+      }
+    })
   }
   
   return {
@@ -167,21 +149,20 @@ export function checkOverallComplete(formData) {
     今日主线推进: checkThreadProgressComplete(formData.今日主线推进),
     决策与内耗: checkDecisionComplete(formData.决策与内耗),
     问题库: checkProblemComplete(formData.问题库),
-    习惯追踪: checkHabitComplete(formData.习惯追踪),
-    每日三省: checkReflectionsComplete(formData.每日三省)
+    明日计划: checkTomorrowPlanComplete(formData.明日计划)
   }
   
   const allComplete = Object.values(results).every(r => r.complete)
   const totalMissing = Object.values(results).reduce((sum, r) => sum + r.missing.length, 0)
   
-  // 估算完成度（核心必填项约10个）
+  // 估算完成度（核心必填项约8个）
   const coreRequired = [
     results.今日概览,
     results.今日主线推进,
-    results.每日三省
+    results.明日计划
   ]
   const coreMissing = coreRequired.reduce((sum, r) => sum + r.missing.length, 0)
-  const completionRate = Math.round((1 - coreMissing / 10) * 100)
+  const completionRate = Math.round((1 - coreMissing / 8) * 100)
   
   return {
     allComplete,

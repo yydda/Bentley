@@ -62,6 +62,32 @@
           </div>
 
           <div class="thread-progress-content space-y-4">
+            <!-- 主线状态（手动填写） -->
+            <el-form-item label="主线状态" label-width="140px">
+              <div class="thread-status-section">
+                <el-select
+                  v-model="getProgressData(threadId).主线状态"
+                  placeholder="选择或输入主线状态"
+                  class="w-full"
+                  filterable
+                  allow-create
+                  default-first-option
+                  clearable
+                >
+                  <el-option label="进行中" value="进行中" />
+                  <el-option label="已完成" value="已完成" />
+                  <el-option label="暂停" value="暂停" />
+                  <el-option label="遇到阻碍" value="遇到阻碍" />
+                  <el-option label="需要调整" value="需要调整" />
+                  <el-option label="进展顺利" value="进展顺利" />
+                  <el-option label="突破进展" value="突破进展" />
+                </el-select>
+                <div class="status-hint">
+                  <span class="hint-text">💡 可以自定义状态，如实记录当前情况</span>
+                </div>
+              </div>
+            </el-form-item>
+
             <!-- 今日关键行动 -->
             <el-form-item label="今日关键行动" label-width="140px" required>
               <el-input
@@ -163,6 +189,7 @@ function getProgressData(threadId) {
   if (!data) {
     data = {
       主线ID: threadId,
+      主线状态: '',
       今日关键行动: '',
       行动记录: '',
       推进效果: 3
@@ -182,6 +209,7 @@ function handleThreadSelectionChange() {
     if (!progressData.value.find(p => p.主线ID === threadId)) {
       progressData.value.push({
         主线ID: threadId,
+        主线状态: '',
         今日关键行动: '',
         行动记录: '',
         推进效果: 3
@@ -295,6 +323,14 @@ onMounted(() => {
 
 .thread-progress-header {
   @apply mb-4 pb-4 border-b border-gray-300;
+}
+
+.thread-status-section {
+  @apply space-y-2;
+}
+
+.status-hint {
+  @apply mt-1;
 }
 
 .thread-title {

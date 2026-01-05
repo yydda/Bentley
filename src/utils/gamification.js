@@ -10,8 +10,7 @@ export function calculateAchievements(formData, date) {
   const hasThreadProgress = threadProgressList.length > 0
   const hasDecisions = formData.决策与内耗?.length > 0
   const hasProblems = formData.问题库?.length > 0
-  const hasHabits = formData.习惯追踪?.length > 0
-  const hasReflections = formData.每日三省?.动机偏差
+  const hasPlans = formData.明日计划?.计划列表?.length > 0
   
   const energyLevel = formData.今日概览?.能量值 || 0
   const stressLevel = formData.今日概览?.压力值 || 0
@@ -24,14 +23,14 @@ export function calculateAchievements(formData, date) {
   const completedModules = [
     hasOverview,
     hasThreadProgress,
-    hasReflections
+    hasPlans
   ].filter(Boolean).length
   
   if (completedModules === 3) {
     achievements.push({
       icon: '🎯',
       title: '核心模块全完成',
-      description: '今日概览、主线推进、每日三省全部完成！'
+      description: '今日概览、主线推进、明日计划全部完成！'
     })
   }
   
@@ -83,36 +82,17 @@ export function calculateAchievements(formData, date) {
     }
   }
   
-  // 习惯坚持成就
-  if (hasHabits) {
-    const executedHabits = formData.习惯追踪?.filter(h => h.是否执行).length || 0
-    const totalHabits = formData.习惯追踪?.length || 0
-    if (executedHabits === totalHabits && totalHabits > 0) {
+  // 明日计划成就
+  if (hasPlans) {
+    const plansWithThread = formData.明日计划?.计划列表?.filter(p => p.关联主线).length || 0
+    const totalPlans = formData.明日计划?.计划列表?.length || 0
+    if (plansWithThread === totalPlans && totalPlans > 0) {
       achievements.push({
-        icon: '🔥',
-        title: '习惯全执行',
-        description: '所有习惯都执行了！'
+        icon: '📅',
+        title: '计划清晰',
+        description: '所有计划都关联了主线！'
       })
     }
-    
-    // 检查连续天数
-    const maxStreak = Math.max(...(formData.习惯追踪?.map(h => h.连续天数 || 0) || [0]))
-    if (maxStreak >= 7) {
-      achievements.push({
-        icon: '🏆',
-        title: '习惯坚持',
-        description: `有习惯连续执行${maxStreak}天！`
-      })
-    }
-  }
-  
-  // 深度反思成就
-  if (hasReflections && formData.每日三省?.理想不一致 && formData.每日三省?.主线对齐) {
-    achievements.push({
-      icon: '💭',
-      title: '深度反省',
-      description: '完成了每日三省，深度思考！'
-    })
   }
   
   // 完整性成就
@@ -121,11 +101,10 @@ export function calculateAchievements(formData, date) {
     hasThreadProgress,
     hasDecisions,
     hasProblems,
-    hasHabits,
-    hasReflections
+    hasPlans
   ].filter(Boolean).length
   
-  if (allModules >= 5) {
+  if (allModules >= 4) {
     achievements.push({
       icon: '📝',
       title: '完整记录',
@@ -146,9 +125,8 @@ export function calculateStats(formData) {
     已决策数: formData.决策与内耗?.filter(d => d.是否解决).length || 0,
     问题数: formData.问题库?.length || 0,
     已解决问题数: formData.问题库?.filter(p => p.是否解决).length || 0,
-    习惯数: formData.习惯追踪?.length || 0,
-    已执行习惯数: formData.习惯追踪?.filter(h => h.是否执行).length || 0,
-    最长连续天数: Math.max(...(formData.习惯追踪?.map(h => h.连续天数 || 0) || [0]))
+    计划数: formData.明日计划?.计划列表?.length || 0,
+    主线关联计划数: formData.明日计划?.计划列表?.filter(p => p.关联主线).length || 0
   }
   
   return stats
@@ -182,12 +160,12 @@ export function generateEncouragement(achievements, stats) {
     })
   }
   
-  // 基于习惯的鼓励
-  if (stats.最长连续天数 >= 7) {
+  // 基于计划的鼓励
+  if (stats.计划数 > 0 && stats.主线关联计划数 === stats.计划数) {
     encouragements.push({
       type: 'excellent',
-      message: `习惯坚持${stats.最长连续天数}天，太厉害了！`,
-      emoji: '🔥'
+      message: '所有计划都关联了主线，目标清晰！',
+      emoji: '📅'
     })
   }
   
@@ -241,4 +219,108 @@ export function calculateStreak(dates) {
   }
   
   return streak
+}
+
+// 计算主线推进的实时反馈（用于主线推进模块）
+export function calculateThreadProgressFeedback(progressData, threadId) {
+  const progress = progressData.find(p => p.主线ID === threadId)
+  if (!progress) {
+    return null
+  }
+  
+  const feedback = {
+    level: 'normal', // normal, good, excellent
+    message: '',
+    icon: '',
+    score: progress.推进效果 || 0
+  }
+  
+  // 根据推进效果给出反馈
+  if (progress.推进效果 >= 4) {
+    feedback.level = 'excellent'
+    feedback.message = '推进效果很好！继续保持！'
+    feedback.icon = '🚀'
+  } else if (progress.推进效果 >= 3) {
+    feedback.level = 'good'
+    feedback.message = '推进效果不错，继续努力！'
+    feedback.icon = '👍'
+  } else if (progress.推进效果 >= 1) {
+    feedback.level = 'normal'
+    feedback.message = '有推进就是进步，加油！'
+    feedback.icon = '💪'
+  } else {
+    feedback.level = 'normal'
+    feedback.message = '开始记录就是第一步！'
+    feedback.icon = '📝'
+  }
+  
+  // 检查是否填写完整
+  const hasAction = progress.今日关键行动 && progress.今日关键行动.trim() !== ''
+  const hasRecord = progress.行动记录 && progress.行动记录.trim() !== ''
+  const hasEffect = progress.推进效果 !== undefined && progress.推进效果 !== null
+  
+  if (hasAction && hasRecord && hasEffect) {
+    feedback.complete = true
+    if (progress.推进效果 >= 4) {
+      feedback.message = '完美！推进效果很好，记录也很完整！'
+      feedback.icon = '🌟'
+    }
+  } else {
+    feedback.complete = false
+    const missing = []
+    if (!hasAction) missing.push('关键行动')
+    if (!hasRecord) missing.push('行动记录')
+    if (!hasEffect) missing.push('推进效果')
+    feedback.message = `还缺少：${missing.join('、')}`
+  }
+  
+  return feedback
+}
+
+// 计算主线状态（用于显示主线进度）
+export function calculateThreadStatus(progressData, threadId) {
+  const progress = progressData.find(p => p.主线ID === threadId)
+  if (!progress) {
+    return {
+      status: '未开始',
+      progress: 0,
+      color: 'gray'
+    }
+  }
+  
+  // 根据填写完整度和推进效果计算状态
+  const hasAction = progress.今日关键行动 && progress.今日关键行动.trim() !== ''
+  const hasRecord = progress.行动记录 && progress.行动记录.trim() !== ''
+  const hasEffect = progress.推进效果 !== undefined && progress.推进效果 !== null
+  
+  let progressValue = 0
+  if (hasAction) progressValue += 33
+  if (hasRecord) progressValue += 33
+  if (hasEffect) progressValue += 34
+  
+  let status = '进行中'
+  let color = 'blue'
+  
+  if (progressValue === 100) {
+    if (progress.推进效果 >= 4) {
+      status = '优秀'
+      color = 'green'
+    } else if (progress.推进效果 >= 3) {
+      status = '良好'
+      color = 'blue'
+    } else {
+      status = '完成'
+      color = 'gray'
+    }
+  } else if (progressValue === 0) {
+    status = '未开始'
+    color = 'gray'
+  }
+  
+  return {
+    status,
+    progress: progressValue,
+    color,
+    effect: progress.推进效果 || 0
+  }
 }
