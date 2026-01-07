@@ -1,99 +1,202 @@
 <template>
   <div class="min-h-screen bg-gray-50">
     <!-- 顶部导航栏 -->
-    <header class="bg-white shadow-sm px-2 md:px-8 flex flex-col md:flex-row items-start md:items-center justify-between min-h-16 md:h-16 fixed top-0 left-0 right-0 z-50">
-      <h1 class="text-lg md:text-xl font-bold text-gray-800 px-2 md:px-0 py-2 md:py-0">日记填写系统</h1>
-      <div class="flex items-center gap-1 md:gap-4 w-full md:w-auto px-2 md:px-0 pb-2 md:pb-0">
-        <!-- 日期导航 -->
-        <el-button
-          :icon="ArrowLeft"
-          circle
-          size="small"
-          @click="navigateDate(-1)"
-          :disabled="!canNavigatePrev"
-        />
-        <el-date-picker
-          v-model="currentDate"
-          type="date"
-          placeholder="选择日期"
-          format="YYYY-MM-DD"
-          value-format="YYYY-MM-DD"
-          @change="handleDateChange"
-          class="flex-1 md:w-32"
-          size="small"
-        />
-        <el-button
-          :icon="ArrowRight"
-          circle
-          size="small"
-          @click="navigateDate(1)"
-          :disabled="!canNavigateNext"
-        />
-        <el-button
-          type="default"
-          @click="showHistoryDialog = true"
-          :icon="Calendar"
-          size="small"
-          plain
-        >
-          <span class="hidden sm:inline">历史</span>
-        </el-button>
-        <el-button 
-          type="default" 
-          @click="handleExport" 
-          :icon="Download" 
-          size="small"
-          plain
-        >
-          <span class="hidden md:inline">导出</span>
-        </el-button>
-        <el-button 
-          type="primary"  
-          @click="saveManually" 
-          size="small"
-          title="保存 (Ctrl+S / Cmd+S)"
-          :loading="isSaving"
-          :disabled="isSaving"
-          v-if="user"
-        >
-          <span class="hidden sm:inline">{{ isSaving ? '保存中...' : '保存' }}</span>
-        </el-button>
-        <el-button 
-          type="success"  
-          @click="handlePreview" 
-          size="small"
-          :icon="Check"
-          v-if="user"
-        >
-          <span class="hidden sm:inline">预览</span>
-        </el-button>
-        <el-button 
-          type="warning"  
-          @click="showTodoListDialog = true" 
-          size="small"
-          :icon="List"
-          v-if="user"
-        >
-          <span class="hidden sm:inline">事项清单</span>
-        </el-button>
-        <el-button 
-          type="text"
-          @click="showLoginDialog = true" 
-          :icon="User" 
-          size="small"
-          v-if="!user"
-        >
-          <span class="hidden sm:inline">登录</span>
-        </el-button>
-        <el-avatar 
-          v-else
-          :src="user.photoURL" 
-          :size="32"
-          @click="showLoginDialog = true"
-          class="cursor-pointer"
-        >
-          {{ user.displayName?.[0] || user.email?.[0] }}
-        </el-avatar>
+    <header class="bg-white shadow-sm px-2 fixed top-0 left-0 right-0 z-50 w-full ">
+      <div class="header-wrapper">
+        <template v-if="isMobile">
+          <div class="mobile-topbar px-3 py-2">
+            <div class="mobile-top-main">
+              <h1 class="text-lg font-bold text-gray-800 truncate">日记填写系统</h1>
+              <div class="mobile-top-right">
+                <el-button 
+                  v-if="!user"
+                  type="text"
+                  @click="showLoginDialog = true" 
+                  :icon="User" 
+                  size="small"
+                >
+                  登录
+                </el-button>
+                <el-avatar 
+                  v-else
+                  :src="user.photoURL" 
+                  :size="32"
+                  @click="showLoginDialog = true"
+                  class="cursor-pointer"
+                >
+                  {{ user.displayName?.[0] || user.email?.[0] }}
+                </el-avatar>
+              </div>
+            </div>
+            <el-button
+              class="mobile-menu-btn"
+              :icon="showMobileMenu ? Close : Menu"
+              circle
+              size="small"
+              text
+              aria-label="切换菜单"
+              @click="toggleMobileMenu"
+            />
+          </div>
+          <div
+            class="mobile-header-actions mobile-card px-3 pb-3 pt-2 transition-all duration-200"
+            v-show="showMobileMenu"
+          >
+            <div class="mobile-row mobile-nav">
+              <el-button
+                :icon="ArrowLeft"
+                circle
+                size="small"
+                @click="navigateDate(-1)"
+                :disabled="!canNavigatePrev"
+              />
+              <el-date-picker
+                v-model="currentDate"
+                type="date"
+                placeholder="选择日期"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+                @change="handleDateChange"
+                class="w-full"
+                size="small"
+              />
+              <el-button
+                :icon="ArrowRight"
+                circle
+                size="small"
+                @click="navigateDate(1)"
+                :disabled="!canNavigateNext"
+              />
+            </div>
+            <div class="mobile-row mobile-actions-secondary">
+              <el-button class="mobile-ghost" type="default" @click="showHistoryDialog = true" :icon="Calendar" size="small" plain>历史</el-button>
+              <el-button class="mobile-ghost" type="default" @click="handleExport" :icon="Download" size="small" plain>导出</el-button>
+            </div>
+            <div class="mobile-row mobile-actions-primary" v-if="user">
+              <el-button 
+                class="mobile-solid" 
+                type="primary"  
+                @click="saveManually" 
+                size="small"
+                title="保存 (Ctrl+S / Cmd+S)"
+                :loading="isSaving"
+                :disabled="isSaving"
+              >
+                保存
+              </el-button>
+              <el-button 
+                class="mobile-solid success" 
+
+                type="success"  
+                @click="handlePreview" 
+                size="small"
+                :icon="Check"
+              >
+                预览
+              </el-button>
+              <el-button 
+                class="mobile-solid warning" 
+                type="warning"  
+                @click="showTodoListDialog = true" 
+                size="small"
+                :icon="List"
+              >
+                事项
+              </el-button>
+            </div>
+            <div class="mobile-row mobile-user" v-if="false"></div>
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="desktop-header flex items-center justify-between w-full py-3">
+            <div class="flex items-center gap-4">
+              <h1 class="text-xl font-bold text-gray-800">日记填写系统</h1>
+              <div class="desktop-nav-row">
+                <el-button
+                  :icon="ArrowLeft"
+                  circle
+                  size="small"
+                  @click="navigateDate(-1)"
+                  :disabled="!canNavigatePrev"
+                />
+                <el-date-picker
+                  v-model="currentDate"
+                  type="date"
+                  placeholder="选择日期"
+                  format="YYYY-MM-DD"
+                  value-format="YYYY-MM-DD"
+                  @change="handleDateChange"
+                  class="w-40"
+                  size="small"
+                />
+                <el-button
+                  :icon="ArrowRight"
+                  circle
+                  size="small"
+                  @click="navigateDate(1)"
+                  :disabled="!canNavigateNext"
+                />
+              </div>
+            </div>
+            <div class="desktop-actions">
+              <el-button type="default" @click="showHistoryDialog = true" :icon="Calendar" size="small" plain>
+                历史
+              </el-button>
+              <el-button type="default" @click="handleExport" :icon="Download" size="small" plain>
+                导出
+              </el-button>
+              <el-button 
+                type="primary"  
+                @click="saveManually" 
+                size="small"
+                title="保存 (Ctrl+S / Cmd+S)"
+                :loading="isSaving"
+                :disabled="isSaving"
+                v-if="user"
+              >
+                保存
+              </el-button>
+              <el-button 
+                type="success"  
+                @click="handlePreview" 
+                size="small"
+                :icon="Check"
+                v-if="user"
+              >
+                预览
+              </el-button>
+              <el-button 
+                type="warning"  
+                @click="showTodoListDialog = true" 
+                size="small"
+                :icon="List"
+                v-if="user"
+              >
+                事项清单
+              </el-button>
+              <el-button 
+                type="text"
+                @click="showLoginDialog = true" 
+                :icon="User" 
+                size="small"
+                v-if="!user"
+              >
+                登录
+              </el-button>
+              <el-avatar 
+                v-else
+                :src="user.photoURL" 
+                :size="32"
+                @click="showLoginDialog = true"
+                class="cursor-pointer"
+                style="margin-left: 10px;"
+              >
+                {{ user.displayName?.[0] || user.email?.[0] }}
+              </el-avatar>
+            </div>
+          </div>
+        </template>
       </div>
     </header>
 
@@ -918,7 +1021,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Download, ArrowLeft, ArrowRight, Calendar, Check, User, DocumentCopy, Printer, Menu, Document, Star, List, Location, CircleCheck, Setting } from '@element-plus/icons-vue'
+import { Download, ArrowLeft, ArrowRight, Calendar, Check, User, DocumentCopy, Printer, Menu, Close, Document, Star, List, Location, CircleCheck, Setting } from '@element-plus/icons-vue'
 import { getTodayDate, getDiaryData, saveDiaryData, getAllDates, getDefaultData } from '../utils/storage'
 import { exportToMarkdown, downloadFile } from '../utils/export'
 import { checkOverallComplete } from '../utils/validation'
@@ -951,6 +1054,29 @@ const lifeThreads = ref([])
 const historyDates = ref([])
 // 日期摘要映射（缓存）
 const dateSummaryMap = ref({})
+
+// 设备与菜单状态
+const isMobile = ref(false)
+const showMobileMenu = ref(false)
+const showHeaderActions = computed(() => !isMobile.value || showMobileMenu.value)
+
+function handleResize() {
+  const mobile = window.innerWidth < 768
+  if (mobile !== isMobile.value) {
+    isMobile.value = mobile
+    // 默认在移动端折叠，在桌面端展开
+    showMobileMenu.value = !mobile
+  } else if (!mobile) {
+    // 保证桌面端始终展示
+    showMobileMenu.value = true
+  }
+}
+
+function toggleMobileMenu() {
+  if (isMobile.value) {
+    showMobileMenu.value = !showMobileMenu.value
+  }
+}
 
 // 日期导航
 const canNavigatePrev = computed(() => {
@@ -1907,6 +2033,10 @@ onMounted(async () => {
   // 确保editingDate初始化
   editingDate.value = currentDate.value
   console.log('初始化editingDate:', editingDate.value)
+
+  // 初始化并监听窗口尺寸，控制移动端菜单折叠
+  handleResize()
+  window.addEventListener('resize', handleResize)
   
   // 先等待认证状态初始化
   user.value = await waitForAuth()
@@ -1959,6 +2089,7 @@ onMounted(async () => {
 // 组件卸载时清理
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('resize', handleResize)
   if (window.currentDataUnsubscribe) {
     window.currentDataUnsubscribe()
   }
@@ -1993,6 +2124,145 @@ watch(formData, () => {
 </script>
 
 <style scoped>
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-wrapper {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.mobile-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mobile-top-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mobile-top-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mobile-menu-btn {
+  flex-shrink: 0;
+}
+
+.header-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-section.nav-row {
+  flex: 1;
+}
+
+.header-section.action-row {
+  flex-wrap: wrap;
+}
+
+.header-section.user-row {
+  margin-left: auto;
+}
+
+@media (max-width: 767px) {
+  .header-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+}
+
+/* 移动端专用布局 */
+.mobile-header-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mobile-card {
+  background: #fff;
+  border: 1px solid #eef1f5;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.04);
+}
+
+.mobile-row {
+  display: grid;
+  gap: 8px;
+}
+
+.mobile-nav {
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+}
+
+.mobile-actions-secondary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mobile-actions-primary {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.mobile-user {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.mobile-header-actions :deep(.el-button),
+.mobile-header-actions :deep(.el-avatar) {
+  width: 100%;
+  justify-content: center;
+  min-height: 40px;
+  font-weight: 600;
+}
+
+.mobile-ghost {
+  border-radius: 10px;
+  background: #fff;
+}
+
+.mobile-solid {
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.mobile-solid.success {
+  background: #48c774;
+  border-color: #48c774;
+}
+
+.mobile-solid.warning {
+  background: #f59e0b;
+  border-color: #f59e0b;
+}
+
+.mobile-header-actions :deep(.el-button.is-circle) {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+
+.mobile-header-actions :deep(.el-date-editor) {
+  width: 100%;
+}
+
+.mobile-header-actions :deep(.el-button--text) {
+  justify-content: center;
+}
+
 /* 内容卡片过渡动画 */
 .content-card {
   transition: opacity 0.3s ease;
@@ -2967,6 +3237,11 @@ watch(formData, () => {
   padding: 0.75rem;
   background: #ffffff;
   border-radius: 6px;
+}
+
+.desktop-actions {
+  display: flex;
+  align-items: center;
 }
 
 /* 移动端优化 */
